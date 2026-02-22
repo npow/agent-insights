@@ -371,8 +371,6 @@ tr:hover td { background: var(--surface2); }
     <div class="feed-header">
       <div class="filter-bar">
         <select id="filter-project"><option value="">All Projects</option></select>
-        <select id="filter-intent"><option value="">All Intents</option></select>
-        <select id="filter-outcome"><option value="">All Outcomes</option></select>
         <select id="filter-sort">
           <option value="started_at DESC">Newest</option>
           <option value="started_at ASC">Oldest</option>
@@ -622,15 +620,11 @@ async function loadSessions(append) {
   }
 
   const project = document.getElementById('filter-project').value;
-  const intent = document.getElementById('filter-intent').value;
-  const outcome = document.getElementById('filter-outcome').value;
   const search = document.getElementById('filter-search').value;
   const sort = document.getElementById('filter-sort').value;
 
   const params = new URLSearchParams({ limit: PAGE_SIZE, offset: sessionOffset, sort });
   if (project) params.set('project', project);
-  if (intent) params.set('intent', intent);
-  if (outcome) params.set('trajectory', outcome);  // outcome filter uses trajectory
   if (search) params.set('search', search);
 
   const data = await api('/api/sessions?' + params);
@@ -913,7 +907,7 @@ async function toggleSession(sessionId, cardEl) {
 }
 
 // ===== FILTERS =====
-['filter-project', 'filter-intent', 'filter-outcome', 'filter-sort'].forEach(id => {
+['filter-project', 'filter-sort'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
     expandedSessionId = null;
     loadSessions(false);
@@ -935,17 +929,6 @@ function populateFilters(projects) {
     projSelect.innerHTML += `<option value="${p.project_name}">${shortProject(p.project_name)} (${p.session_count})</option>`;
   });
 
-  const intentSelect = document.getElementById('filter-intent');
-  intentSelect.innerHTML = '<option value="">All Intents</option>';
-  ['implement', 'debug', 'research', 'review', 'brainstorm', 'refactor', 'prototype'].forEach(i => {
-    intentSelect.innerHTML += `<option value="${i}">${i}</option>`;
-  });
-
-  const outcomeSelect = document.getElementById('filter-outcome');
-  outcomeSelect.innerHTML = '<option value="">All Outcomes</option>';
-  ['converged', 'drifted', 'thrashed', 'abandoned', 'mixed'].forEach(t => {
-    outcomeSelect.innerHTML += `<option value="${t}">${t}</option>`;
-  });
 }
 
 // ===== TABS =====
