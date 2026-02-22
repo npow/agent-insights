@@ -11,3 +11,6 @@ build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 claude-retro = "claude_retro.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["claude_retro*"]
