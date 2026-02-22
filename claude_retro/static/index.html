@@ -392,11 +392,7 @@ tr:hover td { background: var(--surface2); }
   <div class="tab-content" id="tab-charts">
     <div class="chart-grid">
       <div class="chart-card"><h3>Outcome Distribution</h3><div class="chart-wrap"><canvas id="chart-outcome"></canvas></div></div>
-      <div class="chart-card"><h3>Score Trends (by session)</h3><div class="chart-wrap"><canvas id="chart-trends"></canvas></div></div>
-    </div>
-    <div class="chart-grid">
-      <div class="chart-card"><h3>Baselines: 14-session window</h3><div class="chart-wrap"><canvas id="chart-baseline-14"></canvas></div></div>
-      <div class="chart-card"><h3>Baselines: 60-session window</h3><div class="chart-wrap"><canvas id="chart-baseline-60"></canvas></div></div>
+      <div class="chart-card"><h3>Productivity Trend</h3><div class="chart-wrap"><canvas id="chart-trends"></canvas></div></div>
     </div>
     <div class="chart-card" style="margin-bottom:20px">
       <h3>Activity Heatmap</h3>
@@ -416,7 +412,7 @@ tr:hover td { background: var(--surface2); }
           <th data-sort="productivity">Productivity</th>
           <th data-sort="errors">Errors</th>
           <th data-sort="tokens">Tokens</th>
-          <th data-sort="cost">Cost/Sess</th>
+          <th data-sort="cost">Tokens/Sess</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -865,9 +861,6 @@ async function toggleSession(sessionId, cardEl) {
       <div class="ai-body" style="color:var(--text-dim)">No AI analysis available. Run the LLM Judge to get detailed insights.</div>
     </div>`;
     html += `<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-dim);margin-bottom:12px">
-      <span>Convergence: ${fmtPct(s.convergence_score)}</span>
-      <span>Drift: ${fmtPct(s.drift_score)}</span>
-      <span>Thrash: ${fmtPct(s.thrash_score)}</span>
       <span>Duration: ${fmtDuration(s.duration_seconds)}</span>
       <span>Turns: ${s.turn_count}</span>
       <span>Tool uses: ${s.tool_use_count}</span>
@@ -977,9 +970,8 @@ function switchTab(tabName) {
 }
 
 async function loadCharts() {
-  const [jStats, overview, heatmap, sessData] = await Promise.all([
+  const [jStats, heatmap, sessData] = await Promise.all([
     api('/api/judgments/stats'),
-    api('/api/overview'),
     api('/api/heatmap'),
     api('/api/sessions?limit=50&sort=started_at+ASC'),
   ]);
@@ -999,47 +991,22 @@ async function loadCharts() {
     });
   }
 
-  // Score trends
-  const sessArr = sessData.sessions;
+  // Productivity trend (judged sessions only)
+  const sessArr = sessData.sessions.filter(s => s.productivity_ratio != null);
   destroyChart('trends');
-  charts.trends = new Chart(document.getElementById('chart-trends'), {
-    type: 'line',
-    data: {
-      labels: sessArr.map((_, i) => i + 1),
-      datasets: [
-        { label: 'Convergence', data: sessArr.map(s => s.convergence_score), borderColor: '#22c55e', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 },
-        { label: 'Drift', data: sessArr.map(s => s.drift_score), borderColor: '#eab308', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 },
-        { label: 'Thrash', data: sessArr.map(s => s.thrash_score), borderColor: '#ef4444', backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 },
-      ]
-    },
-    options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { min: 0, max: 1, ticks: { color: '#8b8fa3' }, grid: { color: '#2e3347' } } }, plugins: { legend: { labels: { color: '#8b8fa3' } } } }
-  });
-
-  // Baseline radars
-  const baselines = overview.baselines || [];
-  [14, 60].forEach(w => {
-    const b = baselines.find(bl => bl.window_size === w);
-    if (!b) return;
-    destroyChart('baseline' + w);
-    charts['baseline' + w] = new Chart(document.getElementById('chart-baseline-' + w), {
-      type: 'radar',
+  if (sessArr.length > 0) {
+    charts.trends = new Chart(document.getElementById('chart-trends'), {
+      type: 'line',
       data: {
-        labels: ['Convergence', 'Drift (inv)', 'Thrash (inv)', 'Correction (inv)'],
-        datasets: [{
-          label: w + '-session window',
-          data: [b.avg_convergence, 1 - b.avg_drift, 1 - b.avg_thrash, 1 - (b.avg_correction_rate || 0)],
-          backgroundColor: 'rgba(99,102,241,0.2)',
-          borderColor: '#6366f1',
-          pointBackgroundColor: '#6366f1',
-        }]
+        labels: sessArr.map((_, i) => i + 1),
+        datasets: [
+          { label: 'Productivity', data: sessArr.map(s => s.productivity_ratio), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3, pointRadius: 2 },
+        ]
       },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        scales: { r: { min: 0, max: 1, ticks: { color: '#8b8fa3', backdropColor: 'transparent' }, grid: { color: '#2e3347' }, pointLabels: { color: '#8b8fa3' } } },
-        plugins: { legend: { labels: { color: '#8b8fa3' } } }
-      }
+      options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { min: 0, max: 1, ticks: { color: '#8b8fa3', callback: v => (v*100)+'%' }, grid: { color: '#2e3347' } } }, plugins: { legend: { labels: { color: '#8b8fa3' } } } }
     });
-  });
+  }
+
 
   // Heatmap
   renderHeatmap(heatmap.heatmap);
