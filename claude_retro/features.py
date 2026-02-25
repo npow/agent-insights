@@ -8,7 +8,7 @@ from .config import (
     DECISION_MARKERS,
     TOOL_CATEGORIES,
 )
-from .db import get_conn
+from .db import get_conn, get_writer
 
 
 def _linear_trend(values: list[float]) -> float:
@@ -141,13 +141,20 @@ def _topic_keyword_entropy(texts: list[str], window_size: int = 3) -> float:
 
 def extract_features():
     """Extract features for all sessions."""
-    conn = get_conn()
-    conn.execute("DELETE FROM session_features")
+    conn = get_writer()
 
-    sessions = conn.execute("SELECT session_id FROM sessions").fetchall()
+    try:
+        conn.execute("DELETE FROM session_features")
 
-    for (session_id,) in sessions:
-        _extract_session_features(session_id, conn)
+        sessions = conn.execute("SELECT session_id FROM sessions").fetchall()
+
+        for (session_id,) in sessions:
+            _extract_session_features(session_id, conn)
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
     return len(sessions)
 
@@ -258,9 +265,12 @@ def _extract_session_features(session_id: str, conn):
     hour_of_day = 0
     day_of_week = 0
     if session_info and session_info[0]:
-        from datetime import timezone
+        from datetime import datetime, timezone
 
-        started_utc = session_info[0].replace(tzinfo=timezone.utc)
+        # Parse ISO timestamp string from SQLite
+        started_utc = datetime.fromisoformat(session_info[0].replace('Z', '+00:00'))
+        if started_utc.tzinfo is None:
+            started_utc = started_utc.replace(tzinfo=timezone.utc)
         started_local = started_utc.astimezone()
         hour_of_day = started_local.hour
         day_of_week = started_local.weekday()

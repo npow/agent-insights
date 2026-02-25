@@ -1,7 +1,7 @@
 """Heuristic intent classification."""
 
 from .config import INTENT_KEYWORDS
-from .db import get_conn
+from .db import get_conn, get_writer
 
 
 def classify_intent(first_prompt: str, tool_ratios: dict) -> str:
@@ -41,24 +41,30 @@ def classify_intent(first_prompt: str, tool_ratios: dict) -> str:
 
 def classify_all_intents():
     """Classify intents for all sessions."""
-    conn = get_conn()
+    conn = get_writer()
 
-    rows = conn.execute("""
-        SELECT s.session_id, s.first_prompt,
-               f.edit_write_ratio, f.read_grep_ratio, f.bash_ratio
-        FROM sessions s
-        LEFT JOIN session_features f ON s.session_id = f.session_id
-    """).fetchall()
+    try:
+        rows = conn.execute("""
+            SELECT s.session_id, s.first_prompt,
+                   f.edit_write_ratio, f.read_grep_ratio, f.bash_ratio
+            FROM sessions s
+            LEFT JOIN session_features f ON s.session_id = f.session_id
+        """).fetchall()
 
-    for session_id, first_prompt, edit_r, read_r, bash_r in rows:
-        tool_ratios = {
-            "edit_write_ratio": edit_r or 0,
-            "read_grep_ratio": read_r or 0,
-            "bash_ratio": bash_r or 0,
-        }
-        intent = classify_intent(first_prompt or "", tool_ratios)
-        conn.execute(
-            "UPDATE sessions SET intent = ? WHERE session_id = ?", [intent, session_id]
-        )
+        for session_id, first_prompt, edit_r, read_r, bash_r in rows:
+            tool_ratios = {
+                "edit_write_ratio": edit_r or 0,
+                "read_grep_ratio": read_r or 0,
+                "bash_ratio": bash_r or 0,
+            }
+            intent = classify_intent(first_prompt or "", tool_ratios)
+            conn.execute(
+                "UPDATE sessions SET intent = ? WHERE session_id = ?", [intent, session_id]
+            )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
     return len(rows)

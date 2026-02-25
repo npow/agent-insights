@@ -7,7 +7,6 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory, Response
 
 from .db import get_conn
-from .events import get_broadcaster, format_sse
 from .version import get_version_info
 from .export import generate_export_html
 
@@ -32,36 +31,6 @@ def api_status():
     if _worker is None:
         return jsonify({"state": "idle", "step": "", "ready": True})
     return jsonify(_worker.status)
-
-
-@app.route("/api/events")
-def api_events():
-    """Server-Sent Events (SSE) stream for real-time updates.
-
-    Streams status updates, progress events, and completion notifications
-    as they happen. Replaces the need for polling /api/status.
-    """
-
-    def generate():
-        broadcaster = get_broadcaster()
-        q = broadcaster.subscribe()
-        try:
-            # Send initial status
-            if _worker:
-                yield format_sse("status", _worker.status)
-
-            # Stream events as they arrive
-            while True:
-                try:
-                    event = q.get(timeout=30)  # 30s keepalive
-                    yield format_sse(event["event"], event["data"])
-                except Exception:
-                    # Timeout - send keepalive comment
-                    yield ": keepalive\n\n"
-        finally:
-            broadcaster.unsubscribe(q)
-
-    return Response(generate(), mimetype="text/event-stream")
 
 
 def _row_to_dict(row, columns):
@@ -103,7 +72,12 @@ def api_export():
 def api_overview():
     conn = get_conn()
 
-    stats = conn.execute("""
+    _filter = """
+        WHERE turn_count >= 1
+          AND first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+    """
+
+    stats = conn.execute(f"""
         SELECT
             COUNT(*) as total_sessions,
             AVG(convergence_score) as avg_convergence,
@@ -111,31 +85,70 @@ def api_overview():
             AVG(thrash_score) as avg_thrash,
             SUM(duration_seconds) / 3600.0 as total_hours,
             COUNT(DISTINCT project_name) as total_projects,
-            AVG(turn_count) as avg_turns
+            AVG(turn_count) as avg_turns,
+            SUM(user_prompt_count + assistant_msg_count) as total_messages,
+            COUNT(DISTINCT DATE(started_at)) as active_days
         FROM sessions
+        {_filter}
     """).fetchone()
 
-    trajectory_dist = conn.execute("""
+    # Median and p90 of messages per session
+    msg_counts = conn.execute(f"""
+        SELECT user_prompt_count + assistant_msg_count as msgs
+        FROM sessions
+        {_filter}
+        ORDER BY msgs
+    """).fetchall()
+    msg_list = [r[0] for r in msg_counts if r[0] is not None]
+    if msg_list:
+        median_msgs = msg_list[len(msg_list) // 2]
+        p90_msgs = msg_list[int(len(msg_list) * 0.9)]
+        avg_msgs = round(sum(msg_list) / len(msg_list), 1)
+    else:
+        median_msgs = p90_msgs = avg_msgs = 0
+
+    # Top project concentration
+    top_proj = conn.execute(f"""
+        SELECT project_name, COUNT(*) as cnt
+        FROM sessions
+        {_filter}
+        GROUP BY project_name
+        ORDER BY cnt DESC
+        LIMIT 1
+    """).fetchone()
+
+    trajectory_dist = conn.execute(f"""
         SELECT trajectory, COUNT(*) as count
         FROM sessions
+        {_filter}
         GROUP BY trajectory
         ORDER BY count DESC
     """).fetchall()
 
-    baselines = conn.execute("""
+    cursor = conn.execute("""
         SELECT * FROM baselines ORDER BY window_size
-    """).fetchall()
-    baseline_cols = [d[0] for d in conn.description]
+    """)
+    baselines = cursor.fetchall()
+    baseline_cols = [d[0] for d in cursor.description]
+
+    total_sessions = stats[0] or 0
 
     return jsonify(
         {
-            "total_sessions": stats[0],
+            "total_sessions": total_sessions,
             "avg_convergence": round(stats[1] or 0, 3),
             "avg_drift": round(stats[2] or 0, 3),
             "avg_thrash": round(stats[3] or 0, 3),
             "total_hours": round(stats[4] or 0, 1),
             "total_projects": stats[5],
             "avg_turns": round(stats[6] or 0, 1),
+            "total_messages": stats[7] or 0,
+            "active_days": stats[8] or 0,
+            "msgs_per_session_avg": avg_msgs,
+            "msgs_per_session_median": median_msgs,
+            "msgs_per_session_p90": p90_msgs,
+            "top_project": top_proj[0] if top_proj else None,
+            "top_project_pct": round(top_proj[1] / total_sessions, 2) if top_proj and total_sessions else 0,
             "trajectory_distribution": {t: c for t, c in trajectory_dist},
             "baselines": [_row_to_dict(b, baseline_cols) for b in baselines],
         }
@@ -170,7 +183,7 @@ def api_sessions():
         "DESC" if len(sort_parts) < 2 or sort_parts[1].upper() == "DESC" else "ASC"
     )
 
-    conditions = []
+    conditions = ["s.turn_count >= 1", "s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'"]
     params = []
 
     if project:
@@ -183,10 +196,10 @@ def api_sessions():
         conditions.append("s.trajectory = ?")
         params.append(trajectory)
     if search:
-        conditions.append("(s.first_prompt ILIKE ? OR s.session_id ILIKE ?)")
+        conditions.append("(s.first_prompt LIKE ? OR s.session_id LIKE ?)")
         params.extend([f"%{search}%", f"%{search}%"])
 
-    where = "WHERE " + " AND ".join(conditions) if conditions else ""
+    where = "WHERE " + " AND ".join(conditions)
 
     total = conn.execute(f"SELECT COUNT(*) FROM sessions s {where}", params).fetchone()[
         0
@@ -242,25 +255,27 @@ def api_sessions():
 def api_session_detail(session_id):
     conn = get_conn()
 
-    session = conn.execute(
+    cursor = conn.execute(
         """
         SELECT * FROM sessions WHERE session_id = ?
     """,
         [session_id],
-    ).fetchone()
+    )
+    session = cursor.fetchone()
 
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
-    session_cols = [d[0] for d in conn.description]
+    session_cols = [d[0] for d in cursor.description]
 
-    features = conn.execute(
+    cursor2 = conn.execute(
         """
         SELECT * FROM session_features WHERE session_id = ?
     """,
         [session_id],
-    ).fetchone()
-    feature_cols = [d[0] for d in conn.description] if features else []
+    )
+    features = cursor2.fetchone()
+    feature_cols = [d[0] for d in cursor2.description] if features else []
 
     tools = conn.execute(
         """
@@ -271,13 +286,14 @@ def api_session_detail(session_id):
         [session_id],
     ).fetchall()
 
-    judgment = conn.execute(
+    cursor3 = conn.execute(
         """
         SELECT * FROM session_judgments WHERE session_id = ?
     """,
         [session_id],
-    ).fetchone()
-    judgment_cols = [d[0] for d in conn.description] if judgment else []
+    )
+    judgment = cursor3.fetchone()
+    judgment_cols = [d[0] for d in cursor3.description] if judgment else []
 
     result = {
         "session": _row_to_dict(session, session_cols),
@@ -317,7 +333,7 @@ def api_session_timeline(session_id):
         SELECT entry_id, entry_type, timestamp_utc, user_text_length,
                text_length, tool_names, is_tool_result, tool_result_error,
                system_subtype, duration_ms,
-               CASE WHEN user_text_length > 0 THEN LEFT(user_text, 200) ELSE LEFT(text_content, 200) END as preview
+               CASE WHEN user_text_length > 0 THEN SUBSTR(user_text, 1, 200) ELSE SUBSTR(text_content, 1, 200) END as preview
         FROM raw_entries
         WHERE session_id = ? AND NOT is_sidechain
         ORDER BY timestamp_utc
@@ -389,15 +405,15 @@ def api_trends():
     rows = conn.execute(
         """
         SELECT
-            CAST(started_at AS DATE) as day,
+            DATE(started_at) as day,
             COUNT(*) as sessions,
             AVG(convergence_score) as avg_convergence,
             AVG(drift_score) as avg_drift,
             AVG(thrash_score) as avg_thrash,
             SUM(duration_seconds) / 3600.0 as hours
         FROM sessions
-        WHERE started_at >= current_date - INTERVAL '? days'
-        GROUP BY CAST(started_at AS DATE)
+        WHERE started_at >= DATE('now', '-? days')
+        GROUP BY DATE(started_at)
         ORDER BY day
     """.replace("?", str(int(days)))
     ).fetchall()
@@ -499,6 +515,8 @@ def api_projects():
         FROM sessions s
         LEFT JOIN session_features f ON s.session_id = f.session_id
         LEFT JOIN session_judgments j ON s.session_id = j.session_id
+        WHERE s.turn_count >= 1
+          AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%%'
         GROUP BY s.project_name
         ORDER BY session_count DESC
     """).fetchall()
@@ -561,24 +579,32 @@ def api_refresh():
 def api_judgment_stats():
     conn = get_conn()
 
-    total = conn.execute("SELECT COUNT(*) FROM session_judgments").fetchone()[0]
+    # Only count judgments for meaningful sessions (same filter as overview/session list)
+    _jfilter = """
+        FROM session_judgments j
+        JOIN sessions s ON j.session_id = s.session_id
+        WHERE s.turn_count >= 1
+          AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+    """
+
+    total = conn.execute(f"SELECT COUNT(*) {_jfilter}").fetchone()[0]
     if total == 0:
         return jsonify({"total_judged": 0})
 
-    outcome_dist = conn.execute("""
-        SELECT outcome, COUNT(*) as count
-        FROM session_judgments
-        GROUP BY outcome ORDER BY count DESC
+    outcome_dist = conn.execute(f"""
+        SELECT j.outcome, COUNT(*) as count
+        {_jfilter}
+        GROUP BY j.outcome ORDER BY count DESC
     """).fetchall()
 
-    avgs = conn.execute("""
+    avgs = conn.execute(f"""
         SELECT
-            AVG(prompt_clarity) as avg_clarity,
-            AVG(prompt_completeness) as avg_completeness,
-            AVG(productivity_ratio) as avg_productivity,
-            AVG(misalignment_count) as avg_misalignments,
-            SUM(CASE WHEN misalignment_count > 0 THEN 1 ELSE 0 END) as sessions_with_misalignment
-        FROM session_judgments
+            AVG(j.prompt_clarity) as avg_clarity,
+            AVG(j.prompt_completeness) as avg_completeness,
+            AVG(j.productivity_ratio) as avg_productivity,
+            AVG(j.misalignment_count) as avg_misalignments,
+            SUM(CASE WHEN j.misalignment_count > 0 THEN 1 ELSE 0 END) as sessions_with_misalignment
+        {_jfilter}
     """).fetchone()
 
     return jsonify(
@@ -858,7 +884,7 @@ def api_patterns():
     # --- Worst sessions ---
     worst = conn.execute("""
         SELECT j.session_id, j.misalignment_count, j.outcome,
-               LEFT(s.first_prompt, 120) as prompt_preview
+               SUBSTR(s.first_prompt, 1, 120) as prompt_preview
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
         WHERE j.misalignment_count > 0
@@ -909,11 +935,12 @@ def api_skill_dimensions():
 def api_skill_profile():
     conn = get_conn()
 
-    profile = conn.execute("SELECT * FROM skill_profile WHERE id = 1").fetchone()
+    cursor = conn.execute("SELECT * FROM skill_profile WHERE id = 1")
+    profile = cursor.fetchone()
     if not profile:
         return jsonify({"profile": None})
 
-    cols = [d[0] for d in conn.description]
+    cols = [d[0] for d in cursor.description]
     p = _row_to_dict(profile, cols)
     return jsonify({"profile": p})
 
@@ -922,13 +949,14 @@ def api_skill_profile():
 def api_skill_session(session_id):
     conn = get_conn()
 
-    row = conn.execute(
+    cursor = conn.execute(
         "SELECT * FROM session_skills WHERE session_id = ?", [session_id]
-    ).fetchone()
+    )
+    row = cursor.fetchone()
     if not row:
         return jsonify({"skills": None})
 
-    cols = [d[0] for d in conn.description]
+    cols = [d[0] for d in cursor.description]
     return jsonify({"skills": _row_to_dict(row, cols)})
 
 
@@ -976,6 +1004,79 @@ def api_dismiss_skill_nudge(nid):
     return jsonify({"ok": True})
 
 
+@app.route("/api/skills/dimensions/detail")
+def api_skill_dimensions_detail():
+    """Return all dimensions with nudge text for next level + example sessions."""
+    from .config import SKILL_DIMENSIONS, SKILL_NUDGES
+
+    conn = get_conn()
+
+    # Get profile
+    cursor = conn.execute("SELECT * FROM skill_profile WHERE id = 1")
+    profile = cursor.fetchone()
+    if not profile:
+        return jsonify({"dimensions": []})
+    cols = [d[0] for d in cursor.description]
+    p = _row_to_dict(profile, cols)
+    gaps = [p.get("gap_1"), p.get("gap_2"), p.get("gap_3")]
+
+    results = []
+    for dim_id in sorted(SKILL_DIMENSIONS.keys(), key=lambda x: int(x[1:])):
+        d = SKILL_DIMENSIONS[dim_id]
+        num = int(dim_id[1:])
+        score = p.get(f"d{num}_score", 0) or 0
+        level = int(score)
+        is_gap = dim_id in gaps
+        target = level + 1
+
+        # Nudge text for next level (works for ALL dimensions, not just gaps)
+        nudge = SKILL_NUDGES.get((dim_id, target), "")
+
+        # Find example sessions: best demos (high level) and opportunities (high opp)
+        level_col = f"d{num}_level"
+        opp_col = f"d{num}_opportunity"
+        examples = conn.execute(f"""
+            SELECT sk.session_id, sk.{level_col}, sk.{opp_col},
+                   s.first_prompt, s.started_at
+            FROM session_skills sk
+            JOIN sessions s ON sk.session_id = s.session_id
+            WHERE (sk.{level_col} >= 2 OR sk.{opp_col} > sk.{level_col})
+              AND s.turn_count >= 1
+              AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+            ORDER BY sk.{level_col} DESC, s.started_at DESC
+            LIMIT 5
+        """).fetchall()
+
+        example_sessions = []
+        for sid, lv, opp, prompt, started in examples:
+            label = f"L{lv}"
+            if opp > lv:
+                label += f" (could be L{opp})"
+            example_sessions.append({
+                "session_id": sid,
+                "level": lv,
+                "opportunity": opp,
+                "label": label,
+                "first_prompt": (prompt or "")[:80],
+                "started_at": started,
+            })
+
+        results.append({
+            "id": dim_id,
+            "name": d["name"],
+            "short": d["short"],
+            "color": d["color"],
+            "score": round(score, 1),
+            "level": level,
+            "is_gap": is_gap,
+            "next_level": target,
+            "nudge": nudge,
+            "examples": example_sessions,
+        })
+
+    return jsonify({"dimensions": results})
+
+
 @app.route("/api/heatmap")
 def api_heatmap():
     conn = get_conn()
@@ -1001,6 +1102,32 @@ def api_heatmap():
                     "count": r[2],
                     "avg_convergence": round(r[3], 3),
                 }
+                for r in rows
+            ],
+        }
+    )
+
+
+@app.route("/api/heatmap/calendar")
+def api_heatmap_calendar():
+    conn = get_conn()
+
+    rows = conn.execute("""
+        SELECT
+            DATE(started_at) as day,
+            COUNT(*) as count
+        FROM sessions
+        WHERE turn_count >= 1
+          AND first_prompt NOT LIKE 'You are analyzing a Claude Code session%%'
+          AND started_at >= DATE('now', '-365 days')
+        GROUP BY DATE(started_at)
+        ORDER BY day
+    """).fetchall()
+
+    return jsonify(
+        {
+            "calendar": [
+                {"date": str(r[0]), "count": r[1]}
                 for r in rows
             ],
         }

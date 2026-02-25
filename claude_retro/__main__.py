@@ -79,11 +79,17 @@ def main():
         from .background import IngestionWorker
 
         # Check if DB is empty — worker will run pipeline immediately
-        from .db import get_conn
+        from .db import get_conn, get_writer
+
+        # Ensure schema exists by calling get_writer() first
+        get_writer()
 
         conn = get_conn()
-        count = conn.execute("SELECT COUNT(*) FROM raw_entries").fetchone()[0]
-        needs_ingest = count == 0
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM raw_entries").fetchone()[0]
+            needs_ingest = count == 0
+        except:
+            needs_ingest = True
         if needs_ingest:
             print("No data found. Ingesting in background...")
 

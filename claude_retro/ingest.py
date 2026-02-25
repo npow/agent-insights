@@ -8,6 +8,13 @@ from .config import CLAUDE_PROJECTS_DIR
 from .db import get_conn
 
 
+def _json_serialize(obj):
+    """Convert list/array types to JSON strings for SQLite."""
+    if isinstance(obj, list):
+        return json.dumps(obj)
+    return obj
+
+
 def find_jsonl_files() -> list[tuple[Path, str]]:
     """Find all JSONL files and their project names."""
     results = []
@@ -208,8 +215,8 @@ def ingest_file(file_path: Path, project_name: str, conn) -> int:
                 entry["is_tool_result"],
                 entry["tool_result_error"],
                 entry["model"],
-                entry["content_types"],
-                entry["tool_names"],
+                _json_serialize(entry["content_types"]),  # Convert array to JSON
+                _json_serialize(entry["tool_names"]),     # Convert array to JSON
                 entry["text_content"],
                 entry["text_length"],
                 entry["input_tokens"],
@@ -235,7 +242,9 @@ def ingest_file(file_path: Path, project_name: str, conn) -> int:
 
 def run_ingest() -> dict:
     """Run full incremental ingestion. Returns stats."""
-    conn = get_conn()
+    from .db import get_writer
+
+    conn = get_writer()
     files = find_jsonl_files()
 
     stats = {

@@ -14,7 +14,7 @@ CONCURRENCY = 12
 
 # Defaults — override with ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY / CLAUDE_RETRO_MODEL
 _DEFAULT_BASE_URL = "http://localhost:8082"
-_DEFAULT_MODEL = "sonnet"
+_DEFAULT_MODEL = "haiku"
 
 
 def _get_client() -> Anthropic:
@@ -47,6 +47,14 @@ def build_session_summary(session_id: str, conn) -> tuple[str, int]:
     total number of meaningful action rounds (user messages + assistant
     tool-call batches), which is what the LLM should evaluate for productivity.
     """
+    from datetime import datetime
+
+    def _parse_ts(s):
+        """Parse ISO timestamp string, handling trailing Z."""
+        if not s:
+            return None
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
     entries = conn.execute(
         """
         SELECT entry_type, timestamp_utc, user_text, tool_names,
@@ -62,14 +70,15 @@ def build_session_summary(session_id: str, conn) -> tuple[str, int]:
         return "", 0
 
     # Find first timestamp for relative times
-    first_ts = entries[0][1]
+    # SQLite returns timestamps as strings, so parse them
+    first_ts = _parse_ts(entries[0][1])
     lines = []
     is_first_user = True
     turn_num = 0
 
     for (
         entry_type,
-        ts,
+        ts_str,
         user_text,
         tool_names,
         is_tool_result,
@@ -78,7 +87,8 @@ def build_session_summary(session_id: str, conn) -> tuple[str, int]:
         dur_ms,
     ) in entries:
         elapsed = ""
-        if ts and first_ts:
+        if ts_str and first_ts:
+            ts = _parse_ts(ts_str)
             delta = (ts - first_ts).total_seconds()
             if delta >= 60:
                 elapsed = f"[+{delta / 60:.0f}m] "
@@ -95,7 +105,11 @@ def build_session_summary(session_id: str, conn) -> tuple[str, int]:
 
         elif entry_type == "assistant" and tool_names:
             turn_num += 1
-            tools_str = ", ".join(tool_names)
+            # tool_names from DB is a comma-separated string
+            if isinstance(tool_names, str):
+                tools_str = tool_names
+            else:
+                tools_str = ", ".join(tool_names)
             lines.append(f"{elapsed}TURN {turn_num} [assistant tools: {tools_str}]")
 
         elif entry_type == "user" and is_tool_result:
@@ -244,13 +258,85 @@ def analyze_trajectory(session_id: str, summary: str, turn_count: int = 0) -> di
     return parsed
 
 
+_COMBINED_PROMPT = """\
+You are analyzing a Claude Code session transcript. Evaluate both the outcome and trajectory.
+
+SESSION TRANSCRIPT:
+{summary}
+
+This session has {turn_count} turns total. Each "TURN N" in the transcript is one turn.
+
+Respond with ONLY a JSON object (no markdown, no backticks):
+{{
+  "outcome": "completed" | "partially_completed" | "failed" | "abandoned" | "exploratory",
+  "outcome_confidence": 0.0-1.0,
+  "outcome_reasoning": "brief explanation",
+  "prompt_clarity": 0.0-1.0,
+  "prompt_completeness": 0.0-1.0,
+  "prompt_missing": ["list of things missing or underspecified in the initial prompt"],
+  "prompt_summary": "one sentence summary of what the user wanted",
+  "trajectory_summary": "2-3 sentence narrative of how the session evolved",
+  "underspecified_parts": [
+    {{"aspect": "what was underspecified", "impact": "what problem it caused"}}
+  ],
+  "misalignment_count": 0,
+  "misalignments": [
+    {{"turn": 1, "description": "what Claude did wrong"}}
+  ],
+  "correction_count": 0,
+  "corrections": [
+    {{"turn": 2, "type": "clarification|redirect|fix", "description": "what the user said to fix it"}}
+  ],
+  "productive_turns": 0,
+  "waste_turns": 0,
+  "productivity_ratio": 0.0-1.0,
+  "waste_breakdown": {{"misalignment": 0, "errors": 0, "rework": 0}}
+}}
+
+Rules:
+- outcome: completed=finished successfully, partially_completed=some progress, failed=didn't succeed, abandoned=gave up, exploratory=no specific goal
+- productive_turns + waste_turns MUST equal {turn_count}
+- A turn is "waste" if wrong, redundant, or caused by misalignment
+- misalignment_count must equal length of misalignments array
+- correction_count must equal length of corrections array"""
+
+
+def analyze_combined(session_id: str, summary: str, turn_count: int = 0) -> dict:
+    """Single LLM call for both outcome and trajectory analysis."""
+    prompt = _COMBINED_PROMPT.format(summary=summary, turn_count=turn_count)
+    raw = call_claude(prompt)
+    try:
+        parsed = _parse_json_response(raw)
+    except (json.JSONDecodeError, ValueError):
+        parsed = {
+            "outcome": "unknown",
+            "outcome_confidence": 0.0,
+            "outcome_reasoning": f"Failed to parse: {raw[:200]}",
+            "prompt_clarity": 0.0,
+            "prompt_completeness": 0.0,
+            "prompt_missing": [],
+            "prompt_summary": "",
+            "trajectory_summary": "",
+            "underspecified_parts": [],
+            "misalignment_count": 0,
+            "misalignments": [],
+            "correction_count": 0,
+            "corrections": [],
+            "productive_turns": 0,
+            "waste_turns": 0,
+            "productivity_ratio": 0.0,
+            "waste_breakdown": {"misalignment": 0, "errors": 0, "rework": 0},
+        }
+    parsed["_raw"] = raw
+    return parsed
+
+
 def _build_record(session_id, summary, turn_count=0):
-    """Run both analyses in parallel for a single session, return record dict."""
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        f_outcome = pool.submit(analyze_outcome, session_id, summary)
-        f_trajectory = pool.submit(analyze_trajectory, session_id, summary, turn_count)
-        outcome = f_outcome.result()
-        trajectory = f_trajectory.result()
+    """Run combined analysis for a single session, return record dict."""
+    result = analyze_combined(session_id, summary, turn_count)
+    # Split into outcome/trajectory for compatibility with record schema
+    outcome = result
+    trajectory = result
 
     productive = trajectory.get("productive_turns", 0)
     waste = trajectory.get("waste_turns", 0)
@@ -301,7 +387,7 @@ def _build_record(session_id, summary, turn_count=0):
         "productivity_ratio": ratio,
         "waste_breakdown": json.dumps(trajectory.get("waste_breakdown", {})),
         "raw_analysis_1": outcome.get("_raw", ""),
-        "raw_analysis_2": trajectory.get("_raw", ""),
+        "raw_analysis_2": "",
     }
 
 
@@ -316,19 +402,23 @@ def _judge_one(session_id, summary, turn_count):
 
 def judge_session(session_id: str, conn) -> dict:
     """Build summary and run both analyses for a session."""
+    from .db import get_writer
+
     summary, work_turns = build_session_summary(session_id, conn)
     if not summary:
         return None
 
     record = _build_record(session_id, summary, work_turns)
 
-    conn.execute("DELETE FROM session_judgments WHERE session_id = ?", [session_id])
+    wconn = get_writer()
+    wconn.execute("DELETE FROM session_judgments WHERE session_id = ?", [session_id])
     cols = ", ".join(record.keys())
     placeholders = ", ".join(["?"] * len(record))
-    conn.execute(
+    wconn.execute(
         f"INSERT INTO session_judgments ({cols}) VALUES ({placeholders})",
         list(record.values()),
     )
+    wconn.commit()
 
     return record
 
@@ -343,20 +433,27 @@ def judge_sessions(
 
     progress_callback(done, total, ok, errors) is called after each session completes.
     """
-    conn = get_conn()
+    from .db import get_writer
+
+    conn = get_conn()       # reader for SELECT queries
+    wconn = get_writer()    # writer for INSERT/DELETE
+
+    # Only judge sessions with >= 1 turn (0-turn sessions are trivial Q&A or meta-analysis)
+    min_turns = 1
 
     if force:
         session_rows = conn.execute(
-            "SELECT session_id, user_prompt_count FROM sessions ORDER BY started_at"
+            "SELECT session_id, user_prompt_count FROM sessions WHERE turn_count >= ? ORDER BY started_at",
+            [min_turns],
         ).fetchall()
     else:
         session_rows = conn.execute("""
             SELECT s.session_id, s.user_prompt_count
             FROM sessions s
             LEFT JOIN session_judgments j ON s.session_id = j.session_id
-            WHERE j.session_id IS NULL
+            WHERE j.session_id IS NULL AND s.turn_count >= ?
             ORDER BY s.started_at
-        """).fetchall()
+        """, [min_turns]).fetchall()
 
     total = len(session_rows)
     if total == 0:
@@ -401,16 +498,17 @@ def judge_sessions(
                 errors += 1
                 print(f"  Warning: {sid[:12]}...: {result}", file=sys.stderr)
             else:
-                # Write to DB (single-threaded to avoid DuckDB contention)
-                conn.execute(
+                # Write to DB using writer connection
+                wconn.execute(
                     "DELETE FROM session_judgments WHERE session_id = ?", [sid]
                 )
                 cols = ", ".join(result.keys())
                 placeholders = ", ".join(["?"] * len(result))
-                conn.execute(
+                wconn.execute(
                     f"INSERT INTO session_judgments ({cols}) VALUES ({placeholders})",
                     list(result.values()),
                 )
+                wconn.commit()
                 count += 1
 
             done = count + errors

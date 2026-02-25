@@ -1,18 +1,16 @@
-"""Background ingestion worker with file system watching."""
+"""Background ingestion worker with simple mtime-based polling."""
 
 import os
 import threading
 import traceback
 
 from .config import CLAUDE_PROJECTS_DIR
-from .events import emit_event
-from .watcher import FileWatcher
 
 
 class IngestionWorker(threading.Thread):
-    """Daemon thread that watches ~/.claude/projects/ for changed JSONL files.
+    """Daemon thread that polls ~/.claude/projects/ for changed JSONL files.
 
-    Uses file system watching (watchdog) for instant detection instead of polling.
+    Uses simple mtime-based polling every 30 seconds to detect changes.
     When changes are detected, runs the fast pipeline (everything except
     LLM judging, which is expensive and user-triggered).
 
@@ -23,7 +21,7 @@ class IngestionWorker(threading.Thread):
 
     def __init__(self, interval: float = 30.0, run_immediately: bool = False):
         super().__init__(daemon=True, name="ingestion-worker")
-        self.interval = interval  # Fallback polling interval
+        self.interval = interval  # Polling interval
         self._run_immediately = run_immediately
         self._stop_event = threading.Event()
         self._known_mtimes: dict[str, float] = {}
@@ -36,17 +34,9 @@ class IngestionWorker(threading.Thread):
         }
         self._refresh_request: dict | None = None
         self._refresh_lock = threading.Lock()
-        self._watcher = FileWatcher(self._on_files_changed)
-        self._change_event = threading.Event()
 
     def stop(self):
         self._stop_event.set()
-        self._watcher.stop()
-
-    def _on_files_changed(self, paths: list[str]):
-        """Called by FileWatcher when JSONL files change."""
-        # Signal the worker thread to run ingestion
-        self._change_event.set()
 
     def request_refresh(self, concurrency: int = 12):
         """Request a full refresh (ingest + judge) from the UI thread.
@@ -61,9 +51,6 @@ class IngestionWorker(threading.Thread):
         return self.status.get("state") not in ("idle",)
 
     def run(self):
-        # Start file watcher
-        self._watcher.start()
-
         if self._run_immediately:
             try:
                 self._run_pipeline()
@@ -82,12 +69,8 @@ class IngestionWorker(threading.Thread):
 
                 if req:
                     self._run_full_refresh(req.get("concurrency", 12))
-                elif self._change_event.is_set():
-                    # File system event triggered
-                    self._change_event.clear()
-                    self._run_pipeline()
                 elif self._has_changes():
-                    # Fallback polling (in case watcher misses something)
+                    # Simple mtime-based polling
                     self._run_pipeline()
             except Exception:
                 traceback.print_exc()
@@ -128,8 +111,6 @@ class IngestionWorker(threading.Thread):
             "current": current,
             "total": total,
         }
-        # Emit SSE event for real-time updates
-        emit_event("status", self.status)
 
     def _set_idle(self):
         self.status = {
@@ -139,8 +120,6 @@ class IngestionWorker(threading.Thread):
             "current": 0,
             "total": 0,
         }
-        # Emit SSE event for real-time updates
-        emit_event("status", self.status)
 
     def _run_pipeline(self):
         """Run the fast ingestion pipeline (no LLM judging)."""

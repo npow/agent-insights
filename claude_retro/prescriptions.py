@@ -2,27 +2,34 @@
 
 import json
 
-from .db import get_conn
+from .db import get_conn, get_writer
 
 
 def generate_prescriptions():
     """Generate prescriptive insights based on session data."""
-    conn = get_conn()
+    conn = get_writer()
 
-    # Clear old non-dismissed prescriptions
-    conn.execute("DELETE FROM prescriptions WHERE dismissed = FALSE")
+    try:
+        # Clear old non-dismissed prescriptions
+        conn.execute("DELETE FROM prescriptions WHERE dismissed = FALSE")
 
-    count = 0
-    count += _time_of_day_insight(conn)
-    count += _first_prompt_quality_insight(conn)
-    count += _session_length_insight(conn)
-    count += _project_flags(conn)
-    count += _trend_insight(conn)
-    count += _tool_error_hotspot(conn)
-    count += _judgment_prompt_quality_insight(conn)
-    count += _judgment_misalignment_insight(conn)
-    count += _judgment_underspec_patterns(conn)
-    count += _skill_gap_prescriptions(conn)
+        count = 0
+        count += _time_of_day_insight(conn)
+        count += _first_prompt_quality_insight(conn)
+        count += _session_length_insight(conn)
+        count += _project_flags(conn)
+        count += _trend_insight(conn)
+        count += _tool_error_hotspot(conn)
+        count += _judgment_prompt_quality_insight(conn)
+        count += _judgment_misalignment_insight(conn)
+        count += _judgment_underspec_patterns(conn)
+        count += _skill_gap_prescriptions(conn)
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
     return count
 
 
@@ -31,7 +38,7 @@ def generate_actions():
 
     Returns a list of action dicts without touching the prescriptions table.
     """
-    conn = get_conn()
+    conn = get_writer()
     actions = []
     actions += _action_time_of_day(conn)
     actions += _action_first_prompt_quality(conn)
@@ -173,62 +180,90 @@ def _session_length_insight(conn) -> int:
 
 
 def _project_flags(conn) -> int:
-    # Overall averages
-    avgs = conn.execute("""
-        SELECT AVG(thrash_score) as avg_thrash, AVG(tool_error_count) as avg_errors
-        FROM sessions
+    _filter = """
+        WHERE s.turn_count >= 1
+          AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+    """
+
+    # Use judgment-based metrics when available, fall back to basic metrics
+    avgs = conn.execute(f"""
+        SELECT
+            AVG(j.productivity_ratio) as avg_prod,
+            AVG(j.misalignment_count) as avg_mis,
+            AVG(s.tool_error_count) as avg_errors
+        FROM sessions s
+        LEFT JOIN session_judgments j ON s.session_id = j.session_id
+        {_filter}
     """).fetchone()
-    if not avgs or avgs[0] is None:
+    if not avgs:
         return 0
 
-    avg_thrash = avgs[0]
-    avg_errors = avgs[1]
+    avg_prod = avgs[0]
+    avg_mis = avgs[1] or 0
+    avg_errors = avgs[2] or 0
 
-    projects = conn.execute("""
+    projects = conn.execute(f"""
         SELECT
-            project_name,
+            s.project_name,
             COUNT(*) as n,
-            AVG(convergence_score) as avg_conv,
-            AVG(thrash_score) as avg_thrash,
-            SUM(tool_error_count) as total_errors,
-            AVG(tool_error_count) as avg_errors
-        FROM sessions
-        GROUP BY project_name
+            AVG(j.productivity_ratio) as avg_prod,
+            AVG(j.misalignment_count) as avg_mis,
+            SUM(s.tool_error_count) as total_errors,
+            AVG(s.tool_error_count) as avg_errors,
+            SUM(CASE WHEN j.outcome = 'completed' THEN 1.0 ELSE 0.0 END)
+                / NULLIF(SUM(CASE WHEN j.outcome IS NOT NULL THEN 1 ELSE 0 END), 0) as completion_rate
+        FROM sessions s
+        LEFT JOIN session_judgments j ON s.session_id = j.session_id
+        {_filter}
+        GROUP BY s.project_name
         HAVING n >= 3
-        ORDER BY avg_thrash DESC
+        ORDER BY avg_prod ASC NULLS LAST
     """).fetchall()
 
     count = 0
     for p in projects:
-        name, n, conv, thrash, total_errors, p_avg_errors = p
+        name, n, prod, mis, total_errors, p_avg_errors, comp_rate = p
         short_name = name.replace("-Users-npow-code-", "").replace("-Users-npow-", "")
 
-        if thrash > avg_thrash * 1.5 or p_avg_errors > avg_errors * 1.5:
-            reasons = []
-            if thrash > avg_thrash * 1.5:
-                reasons.append(f"thrash {thrash:.0%} vs {avg_thrash:.0%} avg")
-            if p_avg_errors > avg_errors * 1.5:
-                reasons.append(
-                    f"{total_errors:.0f} total errors ({p_avg_errors:.1f}/session vs {avg_errors:.1f} avg)"
-                )
-
-            conn.execute(
-                """
-                INSERT INTO prescriptions (category, title, description, evidence, confidence)
-                VALUES (?, ?, ?, ?, ?)
-            """,
-                [
-                    "project_health",
-                    f"Project '{short_name}' needs attention",
-                    f"This project is struggling: {'; '.join(reasons)}. "
-                    f"Convergence is at {conv:.0%}.",
-                    f"Based on {n} sessions.",
-                    0.8,
-                ],
+        problems = []
+        advice = []
+        if prod is not None and avg_prod is not None and prod < avg_prod * 0.8:
+            problems.append(f"productivity {prod:.0%} vs {avg_prod:.0%} avg")
+            advice.append("break tasks into smaller, well-scoped prompts")
+        if mis is not None and avg_mis is not None and mis > avg_mis * 1.5 and mis >= 2:
+            problems.append(f"{mis:.1f} misalignments/session vs {avg_mis:.1f} avg")
+            advice.append("add explicit constraints and expected behavior to your prompts")
+        if p_avg_errors > avg_errors * 1.5 and total_errors >= 3:
+            problems.append(
+                f"{total_errors:.0f} tool errors ({p_avg_errors:.1f}/session vs {avg_errors:.1f} avg)"
             )
-            count += 1
-            if count >= 3:
-                break
+            advice.append("check if there's a recurring environment or config issue")
+
+        if not problems:
+            continue
+
+        # Use ||SPLIT|| delimiter so frontend can render diagnosis vs advice separately
+        diagnosis = "; ".join(problems).capitalize()
+        if comp_rate is not None:
+            diagnosis += f". Completion rate: {comp_rate:.0%}"
+        action_text = ". ".join(a.capitalize() for a in advice)
+
+        conn.execute(
+            """
+            INSERT INTO prescriptions (category, title, description, evidence, confidence)
+            VALUES (?, ?, ?, ?, ?)
+        """,
+            [
+                "project_health",
+                f"Improve '{short_name}' sessions",
+                f"{diagnosis}||SPLIT||{action_text}",
+                f"project:{name}:{n}",
+                0.8,
+            ],
+        )
+        count += 1
+        if count >= 3:
+            break
     return count
 
 
@@ -434,48 +469,59 @@ def _action_session_length(conn):
 
 def _action_project_flags(conn):
     avgs = conn.execute("""
-        SELECT AVG(thrash_score), AVG(tool_error_count) FROM sessions
+        SELECT
+            AVG(j.productivity_ratio),
+            AVG(j.misalignment_count),
+            AVG(s.tool_error_count)
+        FROM sessions s
+        LEFT JOIN session_judgments j ON s.session_id = j.session_id
     """).fetchone()
-    if not avgs or avgs[0] is None:
+    if not avgs:
         return []
 
-    avg_thrash, avg_errors = avgs
+    avg_prod, avg_mis, avg_errors = avgs[0], avgs[1] or 0, avgs[2] or 0
 
     projects = conn.execute("""
         SELECT
-            project_name, COUNT(*) as n,
-            AVG(convergence_score) as avg_conv,
-            AVG(thrash_score) as avg_thrash,
-            SUM(tool_error_count) as total_errors,
-            AVG(tool_error_count) as avg_errors
-        FROM sessions
-        GROUP BY project_name
+            s.project_name, COUNT(*) as n,
+            AVG(j.productivity_ratio) as avg_prod,
+            AVG(j.misalignment_count) as avg_mis,
+            SUM(s.tool_error_count) as total_errors,
+            AVG(s.tool_error_count) as avg_errors
+        FROM sessions s
+        LEFT JOIN session_judgments j ON s.session_id = j.session_id
+        GROUP BY s.project_name
         HAVING n >= 3
-        ORDER BY avg_thrash DESC
+        ORDER BY avg_prod ASC NULLS LAST
     """).fetchall()
 
     actions = []
     for p in projects:
-        name, n, conv, thrash, total_errors, p_avg_errors = p
+        name, n, prod, mis, total_errors, p_avg_errors = p
         short = name.replace("-Users-npow-code-", "").replace("-Users-npow-", "")
 
-        if thrash > avg_thrash * 1.5 or p_avg_errors > avg_errors * 1.5:
-            reasons = []
-            if thrash > avg_thrash * 1.5:
-                reasons.append(f"thrash {thrash:.0%}")
-            if p_avg_errors > avg_errors * 1.5:
-                reasons.append(f"{total_errors:.0f} errors")
-            actions.append(
-                {
-                    "type": "warning",
-                    "title": f"Project '{short}' struggling",
-                    "body": f"Convergence {conv:.0%}, {', '.join(reasons)}. "
-                    f"Consider reviewing your approach for this project.",
-                    "evidence": f"{n} sessions, avg thrash {avg_thrash:.0%}",
-                }
-            )
-            if len(actions) >= 2:
-                break
+        reasons = []
+        if prod is not None and avg_prod is not None and prod < avg_prod * 0.8:
+            reasons.append(f"productivity {prod:.0%} vs {avg_prod:.0%} avg")
+        if mis is not None and avg_mis is not None and mis > avg_mis * 1.5 and mis >= 2:
+            reasons.append(f"{mis:.1f} misalignments/session")
+        if p_avg_errors > avg_errors * 1.5 and total_errors >= 3:
+            reasons.append(f"{total_errors:.0f} tool errors")
+
+        if not reasons:
+            continue
+
+        actions.append(
+            {
+                "type": "warning",
+                "title": f"Project '{short}' struggling",
+                "body": f"{', '.join(reasons).capitalize()}. "
+                f"Consider reviewing your approach for this project.",
+                "evidence": f"project:{name}:{n}",
+            }
+        )
+        if len(actions) >= 2:
+            break
     return actions
 
 
@@ -909,11 +955,12 @@ def _skill_gap_prescriptions(conn) -> int:
     """Generate prescriptions from top skill gaps."""
     from .config import SKILL_DIMENSIONS, SKILL_NUDGES
 
-    profile = conn.execute("SELECT * FROM skill_profile WHERE id = 1").fetchone()
+    cursor = conn.execute("SELECT * FROM skill_profile WHERE id = 1")
+    profile = cursor.fetchone()
     if not profile:
         return 0
 
-    cols = [d[0] for d in conn.description]
+    cols = [d[0] for d in cursor.description]
     p = dict(zip(cols, profile))
 
     count = 0
@@ -955,11 +1002,12 @@ def _action_skill_gaps(conn):
     """Generate action items from skill gaps."""
     from .config import SKILL_DIMENSIONS, SKILL_NUDGES
 
-    profile = conn.execute("SELECT * FROM skill_profile WHERE id = 1").fetchone()
+    cursor = conn.execute("SELECT * FROM skill_profile WHERE id = 1")
+    profile = cursor.fetchone()
     if not profile:
         return []
 
-    cols = [d[0] for d in conn.description]
+    cols = [d[0] for d in cursor.description]
     p = dict(zip(cols, profile))
 
     actions = []
@@ -982,7 +1030,7 @@ def _action_skill_gaps(conn):
         actions.append(
             {
                 "type": "tip",
-                "title": f"Level up: {dim_name} (L{current_level} -> L{target_level})",
+                "title": f"Level up {dim_name} (L{current_level} -> L{target_level})",
                 "body": nudge_text,
                 "evidence": f"Skill assessment across {p.get('session_count', 0)} sessions",
             }

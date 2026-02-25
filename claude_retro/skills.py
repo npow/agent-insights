@@ -13,23 +13,30 @@ from .config import (
     SKILL_TEST_COMMANDS,
     SKILL_THINKING_TRIGGERS,
 )
-from .db import get_conn
+from .db import get_conn, get_writer
 
 
 def assess_skills() -> int:
     """Assess skill levels for all sessions. Returns count of sessions assessed."""
-    conn = get_conn()
-    conn.execute("DELETE FROM session_skills")
+    conn = get_writer()
 
-    sessions = conn.execute("SELECT session_id FROM sessions").fetchall()
+    try:
+        conn.execute("DELETE FROM session_skills")
 
-    for (session_id,) in sessions:
-        _assess_session(session_id, conn)
+        sessions = conn.execute("SELECT session_id FROM sessions").fetchall()
 
-    # Recompute aggregate profile
-    _compute_skill_profile(conn)
-    # Generate nudges from gaps
-    _generate_skill_nudges(conn)
+        for (session_id,) in sessions:
+            _assess_session(session_id, conn)
+
+        # Recompute aggregate profile
+        _compute_skill_profile(conn)
+        # Generate nudges from gaps
+        _generate_skill_nudges(conn)
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
     return len(sessions)
 
@@ -88,10 +95,11 @@ def _gather_session_data(session_id: str, conn) -> dict | None:
     if not session:
         return None
 
-    features = conn.execute(
+    features_cursor = conn.execute(
         "SELECT * FROM session_features WHERE session_id = ?", [session_id]
-    ).fetchone()
-    feature_cols = [d[0] for d in conn.description] if features else []
+    )
+    features = features_cursor.fetchone()
+    feature_cols = [d[0] for d in features_cursor.description] if features else []
     feat = dict(zip(feature_cols, features)) if features else {}
 
     user_texts = [
@@ -518,18 +526,19 @@ def _detect_codebase_design(data: dict) -> tuple[int, int]:
 def _compute_skill_profile(conn):
     """Compute aggregate skill profile across recent sessions."""
     # Get last 100 sessions with skill assessments, ordered by recency
-    rows = conn.execute("""
+    cursor = conn.execute("""
         SELECT sk.*, s.started_at
         FROM session_skills sk
         JOIN sessions s ON sk.session_id = s.session_id
         ORDER BY s.started_at DESC
         LIMIT 100
-    """).fetchall()
+    """)
+    rows = cursor.fetchall()
 
     if not rows:
         return
 
-    cols = [d[0] for d in conn.description]
+    cols = [d[0] for d in cursor.description]
 
     # Exponential decay weights (most recent = highest weight)
     n = len(rows)
@@ -606,11 +615,12 @@ def _generate_skill_nudges(conn):
     """Generate nudge suggestions from skill gaps."""
     conn.execute("DELETE FROM skill_nudges WHERE dismissed = FALSE")
 
-    profile = conn.execute("SELECT * FROM skill_profile WHERE id = 1").fetchone()
+    cursor = conn.execute("SELECT * FROM skill_profile WHERE id = 1")
+    profile = cursor.fetchone()
     if not profile:
         return
 
-    cols = [d[0] for d in conn.description]
+    cols = [d[0] for d in cursor.description]
     p = dict(zip(cols, profile))
 
     # For each gap dimension, generate a nudge

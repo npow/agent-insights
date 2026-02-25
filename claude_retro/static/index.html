@@ -23,14 +23,53 @@
   --purple: #a855f7;
   --cyan: #06b6d4;
   --radius: 10px;
+  --overlay: rgba(0,0,0,0.6);
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+[data-theme="light"] {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --surface2: #f0f1f3;
+  --border: #d1d5db;
+  --text: #1f2937;
+  --text-dim: #6b7280;
+  --accent: #6366f1;
+  --accent2: #4f46e5;
+  --green: #16a34a;
+  --yellow: #ca8a04;
+  --red: #dc2626;
+  --orange: #ea580c;
+  --blue: #2563eb;
+  --purple: #9333ea;
+  --cyan: #0891b2;
+  --overlay: rgba(0,0,0,0.35);
+  --shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   background: var(--bg); color: var(--text);
   min-height: 100vh;
+  transition: background-color 0.3s, color 0.3s;
 }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 a { color: var(--accent2); text-decoration: none; }
+
+/* Loading spinner */
+.loading {
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px; color: var(--text-dim);
+}
+.spinner {
+  display: inline-block; width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* Single-column layout */
 .page { max-width: 860px; margin: 0 auto; padding: 24px 20px 80px; }
@@ -38,7 +77,8 @@ a { color: var(--accent2); text-decoration: none; }
 /* Top bar */
 .top-bar {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  margin-bottom: 32px; padding-bottom: 16px; border-bottom: 3px solid var(--border);
+  position: relative;
 }
 .top-bar h1 { font-size: 18px; font-weight: 700; color: var(--accent2); }
 .top-bar h1 span { color: var(--text-dim); font-weight: 400; }
@@ -52,7 +92,7 @@ a { color: var(--accent2); text-decoration: none; }
 /* ===== THE VERDICT ===== */
 .verdict {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 28px 32px; margin-bottom: 32px;
+  padding: 28px 32px; margin-bottom: 32px; transition: background-color 0.3s, border-color 0.3s;
 }
 .verdict-summary {
   font-size: 20px; font-weight: 600; line-height: 1.5; margin-bottom: 16px;
@@ -73,7 +113,8 @@ a { color: var(--accent2); text-decoration: none; }
 .verdict-stats {
   display: flex; gap: 24px; flex-wrap: wrap; font-size: 13px; color: var(--text-dim);
 }
-.verdict-stats .vs { display: flex; align-items: baseline; gap: 6px; }
+.verdict-stats .vs { display: flex; align-items: baseline; gap: 6px; padding-right: 16px; border-right: 1px solid var(--border); }
+.verdict-stats .vs:last-child { border-right: none; padding-right: 0; }
 .verdict-stats .vs strong { font-size: 18px; font-weight: 700; color: var(--text); }
 
 /* ===== CHANGE THESE 3 THINGS ===== */
@@ -87,7 +128,7 @@ a { color: var(--accent2); text-decoration: none; }
 }
 .change-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 16px 18px; border-left: 3px solid var(--accent);
+  padding: 16px 18px; border-left: 3px solid var(--accent); transition: background-color 0.3s, border-color 0.3s;
 }
 .change-card .change-num {
   font-size: 11px; font-weight: 700; color: var(--accent2);
@@ -119,7 +160,7 @@ a { color: var(--accent2); text-decoration: none; }
 /* Session card — compact */
 .s-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px 16px; cursor: pointer; transition: border-color 0.15s;
+  padding: 12px 16px; cursor: pointer; transition: border-color 0.15s, background-color 0.3s;
 }
 .s-card:hover { border-color: var(--accent); }
 .s-card.expanded { border-color: var(--accent); cursor: default; }
@@ -152,23 +193,23 @@ a { color: var(--accent2); text-decoration: none; }
   display: inline-block; padding: 2px 7px; border-radius: 4px;
   font-size: 10px; font-weight: 600; text-transform: uppercase;
 }
-.badge-completed { background: rgba(34,197,94,0.15); color: var(--green); }
-.badge-partially_completed { background: rgba(234,179,8,0.15); color: var(--yellow); }
-.badge-failed { background: rgba(239,68,68,0.15); color: var(--red); }
-.badge-exploratory { background: rgba(6,182,212,0.15); color: var(--cyan); }
-.badge-converged { background: rgba(34,197,94,0.15); color: var(--green); }
-.badge-drifted { background: rgba(234,179,8,0.15); color: var(--yellow); }
-.badge-thrashed { background: rgba(239,68,68,0.15); color: var(--red); }
-.badge-abandoned { background: rgba(139,143,163,0.15); color: var(--text-dim); }
-.badge-mixed { background: rgba(168,85,247,0.15); color: var(--purple); }
-.badge-unknown { background: rgba(139,143,163,0.1); color: var(--text-dim); }
-.badge-implement { background: rgba(99,102,241,0.15); color: var(--accent2); }
-.badge-debug { background: rgba(239,68,68,0.15); color: var(--red); }
-.badge-research { background: rgba(6,182,212,0.15); color: var(--cyan); }
-.badge-refactor { background: rgba(168,85,247,0.15); color: var(--purple); }
-.badge-brainstorm { background: rgba(234,179,8,0.15); color: var(--yellow); }
-.badge-review { background: rgba(34,197,94,0.15); color: var(--green); }
-.badge-prototype { background: rgba(249,115,22,0.15); color: var(--orange); }
+.badge-completed { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+.badge-partially_completed { background: color-mix(in srgb, var(--yellow) 15%, transparent); color: var(--yellow); }
+.badge-failed { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
+.badge-exploratory { background: color-mix(in srgb, var(--cyan) 15%, transparent); color: var(--cyan); }
+.badge-converged { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+.badge-drifted { background: color-mix(in srgb, var(--yellow) 15%, transparent); color: var(--yellow); }
+.badge-thrashed { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
+.badge-abandoned { background: color-mix(in srgb, var(--text-dim) 15%, transparent); color: var(--text-dim); }
+.badge-mixed { background: color-mix(in srgb, var(--purple) 15%, transparent); color: var(--purple); }
+.badge-unknown { background: color-mix(in srgb, var(--text-dim) 10%, transparent); color: var(--text-dim); }
+.badge-implement { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent2); }
+.badge-debug { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
+.badge-research { background: color-mix(in srgb, var(--cyan) 15%, transparent); color: var(--cyan); }
+.badge-refactor { background: color-mix(in srgb, var(--purple) 15%, transparent); color: var(--purple); }
+.badge-brainstorm { background: color-mix(in srgb, var(--yellow) 15%, transparent); color: var(--yellow); }
+.badge-review { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+.badge-prototype { background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange); }
 
 /* ===== EXPANDED SESSION DETAIL (in-place) ===== */
 .s-detail {
@@ -198,7 +239,7 @@ a { color: var(--accent2); text-decoration: none; }
 
 /* Tags */
 .tag-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
-.tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; background: rgba(99,102,241,0.1); color: var(--accent2); }
+.tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent2); }
 
 /* Issue items */
 .issue-list { margin-bottom: 12px; }
@@ -206,9 +247,9 @@ a { color: var(--accent2); text-decoration: none; }
   display: flex; gap: 8px; padding: 6px 8px; border-radius: 5px;
   margin-bottom: 4px; font-size: 12px;
 }
-.issue-item.misalignment { background: rgba(239,68,68,0.08); border-left: 3px solid var(--red); }
-.issue-item.correction { background: rgba(234,179,8,0.08); border-left: 3px solid var(--yellow); }
-.issue-item.underspec { background: rgba(249,115,22,0.08); border-left: 3px solid var(--orange); }
+.issue-item.misalignment { background: color-mix(in srgb, var(--red) 8%, transparent); border-left: 3px solid var(--red); }
+.issue-item.correction { background: color-mix(in srgb, var(--yellow) 8%, transparent); border-left: 3px solid var(--yellow); }
+.issue-item.underspec { background: color-mix(in srgb, var(--orange) 8%, transparent); border-left: 3px solid var(--orange); }
 .issue-item .turn-num { color: var(--text-dim); white-space: nowrap; font-weight: 600; }
 .issue-item .issue-desc { color: var(--text-dim); }
 .issue-item .issue-context {
@@ -217,10 +258,10 @@ a { color: var(--accent2); text-decoration: none; }
   white-space: pre-wrap; word-break: break-word;
 }
 .issue-item .issue-context.ctx-user {
-  background: rgba(99,102,241,0.08); border-left: 2px solid var(--accent); color: var(--accent2);
+  background: color-mix(in srgb, var(--accent) 8%, transparent); border-left: 2px solid var(--accent); color: var(--accent2);
 }
 .issue-item .issue-context.ctx-assistant {
-  background: rgba(34,197,94,0.06); border-left: 2px solid var(--green); color: var(--text-dim);
+  background: color-mix(in srgb, var(--green) 6%, transparent); border-left: 2px solid var(--green); color: var(--text-dim);
 }
 
 /* Productivity bar */
@@ -279,7 +320,7 @@ a { color: var(--accent2); text-decoration: none; }
 .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; margin-bottom: 20px; }
 .chart-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 16px;
+  padding: 16px; transition: background-color 0.3s, border-color 0.3s;
 }
 .chart-card h3 { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
 .chart-wrap { position: relative; height: 240px; }
@@ -291,13 +332,14 @@ a { color: var(--accent2); text-decoration: none; }
 }
 .health-table-wrap h3 { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; }
+th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: color 0.15s, background 0.15s; }
+th:hover { color: var(--text); background: var(--surface2); }
 td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
 tr:hover td { background: var(--surface2); }
-.row-amber td { background: rgba(234,179,8,0.06); }
-.row-red td { background: rgba(239,68,68,0.06); }
+.row-amber td { background: color-mix(in srgb, var(--yellow) 6%, transparent); }
+.row-red td { background: color-mix(in srgb, var(--red) 6%, transparent); }
 
-/* Heatmap */
+/* Heatmap (7x24 grid) */
 .heatmap { display: grid; grid-template-columns: auto repeat(24, 1fr); gap: 2px; font-size: 11px; }
 .heatmap-label { padding: 4px 8px; color: var(--text-dim); text-align: right; }
 .heatmap-cell {
@@ -306,6 +348,22 @@ tr:hover td { background: var(--surface2); }
 }
 .heatmap-cell:hover { color: var(--text); transform: scale(1.2); }
 .heatmap-header { text-align: center; color: var(--text-dim); padding: 2px; }
+
+/* GitHub-style calendar heatmap */
+.cal-heatmap { overflow-x: auto; }
+.cal-heatmap svg { display: block; }
+.cal-heatmap .cal-month { font-size: 10px; fill: var(--text-dim); }
+.cal-heatmap .cal-day-label { font-size: 10px; fill: var(--text-dim); }
+.cal-heatmap .cal-cell { rx: 2; ry: 2; stroke: var(--bg); stroke-width: 1; }
+.cal-heatmap .cal-cell:hover { stroke: var(--text); stroke-width: 2; }
+.cal-tooltip {
+  position: fixed; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 10px; font-size: 11px; color: var(--text);
+  pointer-events: none; z-index: 100; white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+.cal-legend { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-dim); margin-top: 8px; justify-content: flex-end; }
+.cal-legend-cell { width: 10px; height: 10px; border-radius: 2px; }
 
 /* ===== SKILLS TAB ===== */
 .radar-card {
@@ -331,6 +389,42 @@ tr:hover td { background: var(--surface2); }
 .skill-dim-gap {
   font-size: 11px; color: var(--text-dim); line-height: 1.4;
 }
+.skill-dim-card { cursor: pointer; transition: border-color 0.2s; }
+.skill-dim-card:hover { border-color: var(--accent); }
+.skill-dim-detail { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.skill-dim-card.expanded .skill-dim-detail { display: block; }
+.skill-dim-nudge { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 6px; }
+.skill-dim-nudge strong { color: var(--yellow); font-weight: 600; }
+.skill-dim-examples { font-size: 11px; }
+.skill-dim-examples a {
+  color: var(--accent); text-decoration: none; display: block;
+  padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.skill-dim-examples a:hover { text-decoration: underline; }
+.skill-dim-examples .ex-label { color: var(--text-dim); font-size: 10px; margin-right: 4px; }
+
+/* Session preview modal */
+.session-modal-backdrop {
+  display: none; position: fixed; inset: 0; background: var(--overlay);
+  z-index: 1000; justify-content: center; align-items: center;
+}
+.session-modal-backdrop.active { display: flex; }
+.session-modal {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+  width: 90vw; max-width: 800px; max-height: 85vh; overflow-y: auto;
+  padding: 20px 24px; position: relative;
+}
+.session-modal-close {
+  position: absolute; top: 12px; right: 16px; background: none; border: none;
+  color: var(--text-dim); font-size: 20px; cursor: pointer; padding: 4px 8px;
+}
+.session-modal-close:hover { color: var(--text); }
+.session-modal h3 { margin: 0 0 12px; font-size: 15px; }
+.session-modal .timeline-entry { font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.session-modal .tl-type { font-weight: 600; margin-right: 6px; }
+.session-modal .tl-tools { color: var(--accent); font-size: 11px; }
+.session-modal .tl-text { color: var(--text-dim); margin-top: 2px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+.session-modal .tl-error { color: var(--red); }
 
 .nudge-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
 .nudge-card {
@@ -356,14 +450,11 @@ tr:hover td { background: var(--surface2); }
 .skill-badge {
   display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 4px; font-size: 10px; font-weight: 600;
-  background: rgba(99,102,241,0.1); color: var(--accent2);
+  background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent2);
 }
-.skill-badge.has-gap { background: rgba(234,179,8,0.1); color: var(--yellow); }
+.skill-badge.has-gap { background: color-mix(in srgb, var(--yellow) 10%, transparent); color: var(--yellow); }
 
-/* Loading */
-.loading { text-align: center; padding: 40px; color: var(--text-dim); }
-@keyframes spin { to { transform: rotate(360deg); } }
-.spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+/* Loading (deduplicated) */
 
 /* Empty state */
 .empty-state { text-align: center; padding: 32px; color: var(--text-dim); font-size: 14px; }
@@ -387,6 +478,7 @@ tr:hover td { background: var(--surface2); }
   <div class="top-bar">
     <h1>Claude <span>Retro</span></h1>
     <div style="display:flex;align-items:center;gap:8px">
+      <button id="theme-toggle" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-size:14px;cursor:pointer;transition:background 0.2s,color 0.2s,border-color 0.3s;line-height:1" title="Toggle dark/light mode"></button>
       <select id="concurrency-select" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-size:12px;outline:none;" title="Parallelism">
         <option value="4">4 parallel</option>
         <option value="8">8 parallel</option>
@@ -395,26 +487,23 @@ tr:hover td { background: var(--surface2); }
         <option value="24">24 parallel</option>
       </select>
       <button class="refresh-btn" id="refresh-btn" onclick="refreshData()">Run LLM Judge</button>
-      <a href="/api/export" download style="text-decoration:none">
-        <button class="refresh-btn" style="background:var(--surface2);color:var(--text)">Export HTML</button>
-      </a>
+      <a href="/api/export" download class="refresh-btn" style="background:var(--surface2);color:var(--text);text-decoration:none;display:inline-block;transition:background 0.2s">Export HTML</a>
     </div>
+    <!-- Progress bar overlay (reuses the border, no layout shift) -->
+    <div id="refresh-bar" style="position:absolute;bottom:-3px;left:0;height:3px;width:0%;background:var(--accent);transition:width 0.3s"></div>
   </div>
 
-  <!-- Refresh progress bar (hidden by default) -->
-  <div id="refresh-progress" style="display:none;margin-bottom:20px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <span id="refresh-step" style="font-size:13px;color:var(--text-dim)"></span>
-      <span id="refresh-count" style="font-size:12px;color:var(--text-dim)"></span>
-    </div>
-    <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
-      <div id="refresh-bar" style="height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width 0.3s"></div>
+  <!-- Progress status text (overlays on top-bar, no layout shift) -->
+  <div id="refresh-progress" style="display:none;position:fixed;top:10px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--text-dim);z-index:1000;backdrop-filter:blur(10px);box-shadow:var(--shadow);transition:background-color 0.3s,border-color 0.3s">
+    <div style="display:flex;gap:12px;align-items:center">
+      <span id="refresh-step"></span>
+      <span id="refresh-count" style="color:var(--accent2);font-weight:500"></span>
     </div>
   </div>
 
   <!-- 1. THE VERDICT -->
   <div class="verdict" id="verdict">
-    <div class="loading"><span class="spinner"></span></div>
+    <!-- Content loaded by JS -->
   </div>
 
   <!-- 2. CHANGE THESE 3 THINGS -->
@@ -470,7 +559,11 @@ tr:hover td { background: var(--surface2); }
       <div class="chart-card"><h3>Productivity Trend</h3><div class="chart-wrap"><canvas id="chart-trends"></canvas></div></div>
     </div>
     <div class="chart-card" style="margin-bottom:20px">
-      <h3>Activity Heatmap</h3>
+      <h3>Contribution Calendar</h3>
+      <div id="calendar-container" class="cal-heatmap"></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:20px">
+      <h3>Activity by Day &amp; Hour</h3>
       <div id="heatmap-container"></div>
     </div>
   </div>
@@ -501,6 +594,14 @@ tr:hover td { background: var(--surface2); }
 
 </div>
 
+<!-- Session preview modal -->
+<div class="session-modal-backdrop" id="session-modal" onclick="if(event.target===this)closeSessionModal()">
+  <div class="session-modal">
+    <button class="session-modal-close" onclick="closeSessionModal()">&times;</button>
+    <div id="session-modal-content"><div class="loading"><span class="spinner"></span></div></div>
+  </div>
+</div>
+
 <script>
 // ===== STATE =====
 let charts = {};
@@ -508,6 +609,51 @@ let sessionOffset = 0;
 const PAGE_SIZE = 30;
 let allSessionsLoaded = false;
 let expandedSessionId = null;
+
+// ===== THEME =====
+function getPreferredTheme() {
+  const stored = localStorage.getItem('claude-retro-theme');
+  if (stored) return stored;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = theme === 'light' ? '\u263E' : '\u2600';
+}
+
+function toggleTheme() {
+  const current = document.documentElement.hasAttribute('data-theme') ? 'light' : 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('claude-retro-theme', next);
+  applyTheme(next);
+  // Re-render charts with new theme colors
+  reRenderChartsForTheme();
+}
+
+// Apply theme immediately (before DOM loads) to avoid flash
+applyTheme(getPreferredTheme());
+
+function getCSSVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function reRenderChartsForTheme() {
+  // Re-render Chart.js charts if they exist
+  if (chartsLoaded) {
+    chartsLoaded = false;
+    loadCharts();
+  }
+  if (skillsLoaded) {
+    skillsLoaded = false;
+    loadSkills();
+  }
+}
 
 // ===== HELPERS =====
 async function api(path) { const r = await fetch(path); return r.json(); }
@@ -565,6 +711,17 @@ async function loadVerdict() {
 
   const unjudged = overview.total_sessions - jStats.total_judged;
 
+  // Info stats row (agentsview-style)
+  const topProjShort = overview.top_project ? shortProject(overview.top_project) : '-';
+  const topProjPct = overview.top_project_pct ? `${(overview.top_project_pct * 100).toFixed(0)}%` : '';
+  const infoStats = `
+    <div class="verdict-stats" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div class="vs"><strong>${fmtTokens(overview.total_messages)}</strong> messages</div>
+      <div class="vs"><strong>${overview.active_days}</strong> active days</div>
+      <div class="vs" title="avg / median / p90"><strong>${overview.msgs_per_session_avg}</strong> msgs/sess <span style="font-size:11px">(med ${overview.msgs_per_session_median}, p90 ${overview.msgs_per_session_p90})</span></div>
+      <div class="vs" title="Top project concentration"><strong>${topProjShort}</strong> <span style="font-size:11px">${topProjPct}</span></div>
+    </div>`;
+
   if (jStats.total_judged === 0) {
     // No judgments yet — show basic stats
     el.innerHTML = `
@@ -576,7 +733,7 @@ async function loadVerdict() {
         <div class="vs"><strong>${overview.total_sessions}</strong> sessions</div>
         <div class="vs"><strong>${overview.total_hours}</strong> hours</div>
         <div class="vs"><strong>${overview.avg_turns}</strong> avg turns</div>
-      </div>`;
+      </div>` + infoStats;
     return;
   }
 
@@ -622,8 +779,8 @@ async function loadVerdict() {
       <div class="vs"><strong>${failed}</strong> failed</div>
       <div class="vs"><strong>${fmtPct(jStats.avg_clarity)}</strong> avg clarity</div>
       <div class="vs"><strong>${jStats.avg_misalignments}</strong> avg misalign</div>
-      ${unjudged > 0 ? `<div class="vs" style="color:var(--text-dim)"><strong>${unjudged}</strong> unjudged</div>` : ''}
-    </div>`;
+      ${unjudged > 0 ? `<div class="vs" style="color:var(--text-dim)" title="Sessions without manual quality ratings"><strong>${unjudged}</strong> unjudged</div>` : ''}
+    </div>` + infoStats;
 
   // Add skill summary line
   try {
@@ -714,14 +871,30 @@ async function loadChangeCards() {
   }
 
   section.style.display = 'block';
-  container.innerHTML = cards.map(c => `
-    <div class="change-card">
+  container.innerHTML = cards.map(c => {
+    // Parse evidence field: "project:name:count" links to session filter
+    let linkHtml = '';
+    if (c.link && c.link.startsWith('project:')) {
+      const parts = c.link.split(':');
+      const projName = parts.slice(1, -1).join(':');
+      const count = parts[parts.length - 1];
+      const shortName = shortProject(projName);
+      linkHtml = `<div class="change-link" onclick="event.stopPropagation(); filterByProject('${projName.replace(/'/g, "\\'")}')">${count} sessions in ${shortName} &rarr;</div>`;
+    } else if (c.link) {
+      linkHtml = `<div class="change-link" style="cursor:default;color:var(--text-dim)">${c.link}</div>`;
+    }
+    // Split diagnosis from advice if delimiter present
+    const parts = c.body.split('||SPLIT||');
+    const diagnosis = parts[0];
+    const advice = parts[1] || '';
+    return `<div class="change-card">
       <div class="change-num">#${c.num}</div>
       <div class="change-title">${c.title}</div>
-      <div class="change-body">${c.body}</div>
-      <div class="change-link">${c.link || ''}</div>
-    </div>
-  `).join('');
+      <div class="change-body">${diagnosis}</div>
+      ${advice ? `<div style="font-size:13px;color:var(--green);margin-top:6px;line-height:1.5">→ ${advice}</div>` : ''}
+      ${linkHtml}
+    </div>`;
+  }).join('');
 }
 
 // ===== 3. SESSION FEED =====
@@ -752,7 +925,7 @@ async function loadSessions(append) {
     const icon = s.judgment_outcome ? outcomeIcon(s.judgment_outcome) : outcomeIcon(null);
     const prod = s.productivity_ratio;
     const prodBg = prod != null
-      ? `background:${prod >= 0.7 ? 'rgba(34,197,94,0.1)' : prod >= 0.4 ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)'}; color:${prodColor(prod)}`
+      ? `background:color-mix(in srgb, ${prodColor(prod)} 12%, transparent); color:${prodColor(prod)}`
       : 'color:var(--text-dim)';
 
     let html = `
@@ -831,11 +1004,13 @@ async function toggleSession(sessionId, cardEl) {
   cardEl.appendChild(loadingDiv);
 
   // Fetch detail + timeline + skills
+  const fetchStart = performance.now();
   const [detail, timeline, skillsData] = await Promise.all([
     api(`/api/sessions/${sessionId}`),
     api(`/api/sessions/${sessionId}/timeline`),
     api(`/api/skills/session/${sessionId}`),
   ]);
+  console.log(`API fetch took ${(performance.now() - fetchStart).toFixed(0)}ms`);
 
   const s = detail.session;
   const j = detail.judgment;
@@ -910,7 +1085,8 @@ async function toggleSession(sessionId, cardEl) {
           turnMap[turnNum] = { type: 'user', preview: truncate(e.preview, 150) };
         } else if (e.entry_type === 'assistant' && e.tool_names && e.tool_names.length) {
           turnNum++;
-          turnMap[turnNum] = { type: 'assistant', preview: 'Tools: ' + e.tool_names.join(', ') };
+          const tools = Array.isArray(e.tool_names) ? e.tool_names : (typeof e.tool_names === 'string' ? e.tool_names.split(',') : []);
+          turnMap[turnNum] = { type: 'assistant', preview: 'Tools: ' + tools.join(', ') };
         }
       }
 
@@ -1008,11 +1184,14 @@ async function toggleSession(sessionId, cardEl) {
       ${timeline.timeline.slice(0, 100).map(e => {
         let detail = '';
         if (e.entry_type === 'user' && !e.is_tool_result) detail = truncate(e.preview, 120);
-        else if (e.entry_type === 'assistant' && e.tool_names && e.tool_names.length) detail = 'Tools: ' + e.tool_names.join(', ');
+        else if (e.entry_type === 'assistant' && e.tool_names && e.tool_names.length) {
+          const tools = Array.isArray(e.tool_names) ? e.tool_names : (typeof e.tool_names === 'string' ? e.tool_names.split(',') : []);
+          detail = 'Tools: ' + tools.join(', ');
+        }
         else if (e.entry_type === 'assistant') detail = truncate(e.preview, 120);
         else if (e.entry_type === 'system') detail = (e.system_subtype || '') + (e.duration_ms ? ` (${(e.duration_ms/1000).toFixed(1)}s)` : '');
         else if (e.is_tool_result) detail = 'Tool result' + (e.tool_result_error ? ' (ERROR)' : '');
-        const typeColor = { user: '#6366f1', assistant: '#22c55e', system: '#eab308' }[e.entry_type] || '#8b8fa3';
+        const typeColor = { user: 'var(--accent)', assistant: 'var(--green)', system: 'var(--yellow)' }[e.entry_type] || 'var(--text-dim)';
         return `<div class="timeline-entry">
           <div class="te-type" style="color:${typeColor}">${e.entry_type}${e.is_tool_result ? ' (res)' : ''}</div>
           <div class="te-time">${fmtDate(e.timestamp_utc)}</div>
@@ -1022,7 +1201,10 @@ async function toggleSession(sessionId, cardEl) {
     </div>
   </div>`;
 
+  const renderStart = performance.now();
   loadingDiv.innerHTML = html;
+  console.log(`HTML render took ${(performance.now() - renderStart).toFixed(0)}ms`);
+  console.log(`Total session expand took ${(performance.now() - fetchStart).toFixed(0)}ms`);
 }
 
 // ===== FILTERS =====
@@ -1047,7 +1229,15 @@ function populateFilters(projects) {
   (projects || []).forEach(p => {
     projSelect.innerHTML += `<option value="${p.project_name}">${shortProject(p.project_name)} (${p.session_count})</option>`;
   });
+}
 
+function filterByProject(projectName) {
+  // Switch to Sessions tab, set project filter, reload
+  switchTab('sessions');
+  const projSelect = document.getElementById('filter-project');
+  projSelect.value = projectName;
+  expandedSessionId = null;
+  loadSessions(false);
 }
 
 // ===== TABS =====
@@ -1078,14 +1268,16 @@ function switchTab(tabName) {
 
 // ===== SKILLS TAB =====
 async function loadSkills() {
-  const [dims, profile, nudges] = await Promise.all([
+  const [dims, profile, nudges, detail] = await Promise.all([
     api('/api/skills/dimensions'),
     api('/api/skills/profile'),
     api('/api/skills/nudges'),
+    api('/api/skills/dimensions/detail'),
   ]);
 
   const p = profile.profile;
   const dimList = dims.dimensions;
+  const detailDims = detail.dimensions || [];
 
   // Radar chart
   if (p) {
@@ -1096,6 +1288,11 @@ async function loadSkills() {
       return p['d' + num + '_score'] || 0;
     });
 
+    const accentColor = getCSSVar('--accent');
+    const textDim = getCSSVar('--text-dim');
+    const textColor = getCSSVar('--text');
+    const gridColor = getCSSVar('--border');
+
     charts.skillsRadar = new Chart(document.getElementById('chart-skills-radar'), {
       type: 'radar',
       data: {
@@ -1103,11 +1300,11 @@ async function loadSkills() {
         datasets: [{
           label: 'Skill Level',
           data: scores,
-          backgroundColor: 'rgba(99,102,241,0.15)',
-          borderColor: '#6366f1',
+          backgroundColor: accentColor + '26',
+          borderColor: accentColor,
           borderWidth: 2,
-          pointBackgroundColor: '#6366f1',
-          pointBorderColor: '#6366f1',
+          pointBackgroundColor: accentColor,
+          pointBorderColor: accentColor,
           pointRadius: 4,
         }]
       },
@@ -1120,13 +1317,13 @@ async function loadSkills() {
             max: 5,
             ticks: {
               stepSize: 1,
-              color: '#8b8fa3',
+              color: textDim,
               backdropColor: 'transparent',
               font: { size: 10 },
             },
-            grid: { color: '#2e3347' },
-            angleLines: { color: '#2e3347' },
-            pointLabels: { color: '#e4e4e7', font: { size: 11, weight: '500' } },
+            grid: { color: gridColor },
+            angleLines: { color: gridColor },
+            pointLabels: { color: textColor, font: { size: 11, weight: '500' } },
           }
         },
         plugins: {
@@ -1141,15 +1338,22 @@ async function loadSkills() {
     });
   }
 
-  // Dimension cards
+  // Dimension cards (with expandable detail + example sessions)
   const dimsContainer = document.getElementById('skill-dims');
   if (p) {
     const gaps = [p.gap_1, p.gap_2, p.gap_3].filter(Boolean);
+    // Build a lookup from detail API
+    const detailMap = {};
+    detailDims.forEach(dd => { detailMap[dd.id] = dd; });
+
     dimsContainer.innerHTML = dimList.map(d => {
       const num = parseInt(d.id.slice(1));
       const score = p['d' + num + '_score'] || 0;
       const level = Math.floor(score);
       const isGap = gaps.includes(d.id);
+      const dd = detailMap[d.id] || {};
+      const nudge = dd.nudge || '';
+      const examples = dd.examples || [];
 
       let dots = '';
       for (let i = 1; i <= 5; i++) {
@@ -1157,14 +1361,29 @@ async function loadSkills() {
         dots += `<div class="level-dot ${cls}" style="${i <= level ? 'background:' + d.color : ''}"></div>`;
       }
 
-      return `<div class="skill-dim-card" style="border-left: 3px solid ${d.color}">
+      let detailHtml = '';
+      if (nudge) {
+        detailHtml += `<div class="skill-dim-nudge"><strong>To reach L${level + 1}:</strong> ${nudge}</div>`;
+      }
+      if (examples.length > 0) {
+        detailHtml += '<div class="skill-dim-examples"><strong style="color:var(--text-dim)">Example sessions:</strong>';
+        examples.forEach(ex => {
+          const prompt = ex.first_prompt || '(no prompt)';
+          detailHtml += `<a href="#" onclick="event.preventDefault();showSession('${ex.session_id}')"><span class="ex-label">${ex.label}</span> ${prompt}</a>`;
+        });
+        detailHtml += '</div>';
+      }
+
+      return `<div class="skill-dim-card" style="border-left: 3px solid ${d.color}" onclick="this.classList.toggle('expanded')">
         <div class="skill-dim-header">
           <span class="skill-dim-name">${d.name}</span>
           <div class="skill-dim-levels">${dots}</div>
         </div>
         <div class="skill-dim-gap">
           L${level} (${score.toFixed(1)})${isGap ? ' <span style="color:var(--yellow)">&#9650; gap</span>' : ''}
+          ${nudge ? ' <span style="color:var(--text-dim);font-size:10px">click to expand</span>' : ''}
         </div>
+        <div class="skill-dim-detail">${detailHtml}</div>
       </div>`;
     }).join('');
   } else {
@@ -1195,6 +1414,80 @@ async function dismissNudge(id) {
   if (el) el.remove();
 }
 
+async function showSession(sessionId) {
+  const modal = document.getElementById('session-modal');
+  const content = document.getElementById('session-modal-content');
+  modal.classList.add('active');
+  content.innerHTML = '<div class="loading"><span class="spinner"></span></div>';
+
+  try {
+    const [detail, timeline] = await Promise.all([
+      api('/api/sessions/' + sessionId),
+      api('/api/sessions/' + sessionId + '/timeline'),
+    ]);
+    const s = detail.session;
+    const entries = timeline.timeline || [];
+
+    let html = `<h3>${s.first_prompt ? s.first_prompt.slice(0, 120) : sessionId}</h3>`;
+    html += `<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">`;
+    html += `${s.started_at ? new Date(s.started_at).toLocaleString() : ''} &middot; `;
+    html += `${s.turn_count || 0} turns &middot; ${Math.round((s.duration_seconds || 0) / 60)}m`;
+    if (s.project_name) html += ` &middot; ${s.project_name}`;
+    html += `</div>`;
+
+    if (detail.judgment) {
+      const j = detail.judgment;
+      html += `<div style="margin-bottom:12px;padding:8px 10px;background:var(--surface);border-radius:6px;font-size:12px">`;
+      html += `<strong>${j.outcome}</strong> &middot; ${(j.productivity_ratio * 100).toFixed(0)}% productive`;
+      if (j.trajectory_summary) html += `<div style="color:var(--text-dim);margin-top:4px">${j.trajectory_summary}</div>`;
+      html += `</div>`;
+    }
+
+    // Build compact timeline: show user prompts and summarize assistant tool runs
+    html += '<div style="font-size:12px;font-weight:600;margin-bottom:6px">Timeline</div>';
+    let turnNum = 0;
+    let i = 0;
+    while (i < entries.length) {
+      const e = entries[i];
+      if (e.entry_type === 'user' && !e.is_tool_result && e.user_text) {
+        turnNum++;
+        const text = e.user_text.slice(0, 300) + (e.user_text.length > 300 ? '...' : '');
+        html += `<div class="timeline-entry"><span class="tl-type" style="color:var(--green)">Turn ${turnNum} - User</span><div class="tl-text">${text}</div></div>`;
+        i++;
+      } else if (e.entry_type === 'assistant') {
+        // Collect consecutive assistant entries into one block
+        const tools = [];
+        let hasError = false;
+        while (i < entries.length && (entries[i].entry_type === 'assistant' || (entries[i].entry_type === 'user' && entries[i].is_tool_result))) {
+          const ae = entries[i];
+          if (ae.tool_names) {
+            const t = typeof ae.tool_names === 'string' ? ae.tool_names.split(',') : ae.tool_names;
+            t.forEach(x => { const n = x.trim(); if (n && !tools.includes(n)) tools.push(n); });
+          }
+          if (ae.tool_result_error) hasError = true;
+          i++;
+        }
+        turnNum++;
+        let line = `<div class="timeline-entry"><span class="tl-type" style="color:var(--accent)">Turn ${turnNum} - Assistant</span>`;
+        if (tools.length) line += ` <span class="tl-tools">${tools.join(', ')}</span>`;
+        if (hasError) line += ` <span class="tl-error">ERROR</span>`;
+        line += '</div>';
+        html += line;
+      } else {
+        i++; // skip system entries
+      }
+    }
+
+    content.innerHTML = html;
+  } catch (err) {
+    content.innerHTML = `<div style="color:var(--red)">Failed to load session: ${err.message}</div>`;
+  }
+}
+
+function closeSessionModal() {
+  document.getElementById('session-modal').classList.remove('active');
+}
+
 function renderSkillBadges(skills) {
   if (!skills || !window._skillDims) return '';
   const dims = window._skillDims;
@@ -1213,45 +1506,72 @@ function renderSkillBadges(skills) {
 }
 
 async function loadCharts() {
-  const [jStats, heatmap, sessData] = await Promise.all([
+  const [jStats, heatmap, calData, sessData] = await Promise.all([
     api('/api/judgments/stats'),
     api('/api/heatmap'),
+    api('/api/heatmap/calendar'),
     api('/api/sessions?limit=50&sort=started_at+ASC'),
   ]);
 
+  const textDim = getCSSVar('--text-dim');
+  const gridColor = getCSSVar('--border');
+  const greenColor = getCSSVar('--green');
+
   // Outcome distribution donut
   const od = jStats.outcome_distribution || {};
-  const OUTCOME_COLORS = { completed: '#22c55e', partially_completed: '#eab308', failed: '#ef4444', abandoned: '#6b7280', exploratory: '#06b6d4' };
+  const OUTCOME_COLORS = { completed: getCSSVar('--green'), partially_completed: getCSSVar('--yellow'), failed: getCSSVar('--red'), abandoned: getCSSVar('--text-dim'), exploratory: getCSSVar('--cyan') };
   destroyChart('outcome');
+  const outcomeCanvas = document.getElementById('chart-outcome');
   if (Object.keys(od).length > 0) {
-    charts.outcome = new Chart(document.getElementById('chart-outcome'), {
+    charts.outcome = new Chart(outcomeCanvas, {
       type: 'doughnut',
       data: {
         labels: Object.keys(od).map(k => k.replace('_', ' ')),
-        datasets: [{ data: Object.values(od), backgroundColor: Object.keys(od).map(k => OUTCOME_COLORS[k] || '#666'), borderWidth: 0 }]
+        datasets: [{ data: Object.values(od), backgroundColor: Object.keys(od).map(k => OUTCOME_COLORS[k] || getCSSVar('--text-dim')), borderWidth: 0 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#8b8fa3', font: { size: 12 } } } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: textDim, font: { size: 12 } } } } }
     });
+  } else {
+    const ctx = outcomeCanvas.getContext('2d');
+    ctx.clearRect(0, 0, outcomeCanvas.width, outcomeCanvas.height);
+    ctx.fillStyle = textDim;
+    ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No judgment data yet', outcomeCanvas.width / 2, outcomeCanvas.height / 2 - 10);
+    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+    ctx.fillText('Use "Run LLM Judge" to rate sessions', outcomeCanvas.width / 2, outcomeCanvas.height / 2 + 10);
   }
 
   // Productivity trend (judged sessions only)
   const sessArr = sessData.sessions.filter(s => s.productivity_ratio != null);
   destroyChart('trends');
+  const trendsCanvas = document.getElementById('chart-trends');
   if (sessArr.length > 0) {
-    charts.trends = new Chart(document.getElementById('chart-trends'), {
+    charts.trends = new Chart(trendsCanvas, {
       type: 'line',
       data: {
         labels: sessArr.map((_, i) => i + 1),
         datasets: [
-          { label: 'Productivity', data: sessArr.map(s => s.productivity_ratio), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.3, pointRadius: 2 },
+          { label: 'Productivity', data: sessArr.map(s => s.productivity_ratio), borderColor: greenColor, backgroundColor: greenColor + '1a', fill: true, tension: 0.3, pointRadius: 2 },
         ]
       },
-      options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { min: 0, max: 1, ticks: { color: '#8b8fa3', callback: v => (v*100)+'%' }, grid: { color: '#2e3347' } } }, plugins: { legend: { labels: { color: '#8b8fa3' } } } }
+      options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { min: 0, max: 1, ticks: { color: textDim, callback: v => (v*100)+'%' }, grid: { color: gridColor } } }, plugins: { legend: { labels: { color: textDim } } } }
     });
+  } else {
+    const ctx = trendsCanvas.getContext('2d');
+    ctx.clearRect(0, 0, trendsCanvas.width, trendsCanvas.height);
+    ctx.fillStyle = textDim;
+    ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No productivity data yet', trendsCanvas.width / 2, trendsCanvas.height / 2 - 10);
+    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+    ctx.fillText('Use "Run LLM Judge" to rate sessions', trendsCanvas.width / 2, trendsCanvas.height / 2 + 10);
   }
 
+  // Calendar heatmap
+  renderCalendarHeatmap(calData.calendar);
 
-  // Heatmap
+  // Day x Hour heatmap
   renderHeatmap(heatmap.heatmap);
 }
 
@@ -1316,6 +1636,12 @@ function renderProjectTable(sortKey, desc) {
       <td>${fmtCostConv(p, projList)}</td>
     </tr>`;
   }).join('');
+  // Update sort indicators on headers
+  document.querySelectorAll('#project-health-table th[data-sort]').forEach(th => {
+    const base = th.textContent.replace(/ [\u25B2\u25BC]$/, '');
+    th.textContent = base + (th.dataset.sort === _projSortKey ? (_projSortDesc ? ' \u25BC' : ' \u25B2') : '');
+    th.style.color = th.dataset.sort === _projSortKey ? 'var(--text)' : '';
+  });
 }
 
 document.getElementById('project-health-table').addEventListener('click', e => {
@@ -1326,11 +1652,151 @@ document.getElementById('project-health-table').addEventListener('click', e => {
   renderProjectTable(key, desc);
 });
 
+function renderCalendarHeatmap(data) {
+  const container = document.getElementById('calendar-container');
+  const isLight = document.documentElement.hasAttribute('data-theme');
+
+  // Build date -> count map
+  const countMap = {};
+  data.forEach(d => { countMap[d.date] = d.count; });
+  const maxCount = Math.max(...data.map(d => d.count), 1);
+
+  // Green scale (GitHub-style)
+  const emptyColor = isLight ? '#ebedf0' : '#161b22';
+  const greenScale = isLight
+    ? ['#9be9a8', '#40c463', '#30a14e', '#216e39']
+    : ['#0e4429', '#006d32', '#26a641', '#39d353'];
+
+  function cellColor(count) {
+    if (!count) return emptyColor;
+    const ratio = count / maxCount;
+    if (ratio <= 0.25) return greenScale[0];
+    if (ratio <= 0.5) return greenScale[1];
+    if (ratio <= 0.75) return greenScale[2];
+    return greenScale[3];
+  }
+
+  // Build weeks: go back ~52 weeks from today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayOfWeek = (today.getDay() + 6) % 7; // Mon=0
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - (52 * 7 + dayOfWeek));
+
+  const cellSize = 11;
+  const cellGap = 2;
+  const step = cellSize + cellGap;
+  const labelWidth = 28;
+  const headerHeight = 16;
+  const dayLabels = ['Mon', '', 'Wed', '', 'Fri', '', ''];
+
+  // Count weeks
+  let weeks = [];
+  let current = new Date(startDate);
+  let weekCells = [];
+  while (current <= today) {
+    const dow = (current.getDay() + 6) % 7;
+    const dateStr = current.toISOString().slice(0, 10);
+    weekCells.push({ date: dateStr, dow, count: countMap[dateStr] || 0 });
+    if (dow === 6 || current.getTime() === today.getTime()) {
+      weeks.push(weekCells);
+      weekCells = [];
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  if (weekCells.length) weeks.push(weekCells);
+
+  const svgWidth = labelWidth + weeks.length * step + 4;
+  const svgHeight = headerHeight + 7 * step + 4;
+
+  let svg = `<svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Day labels (Mon, Wed, Fri)
+  for (let d = 0; d < 7; d++) {
+    if (dayLabels[d]) {
+      svg += `<text class="cal-day-label" x="${labelWidth - 4}" y="${headerHeight + d * step + cellSize - 1}" text-anchor="end">${dayLabels[d]}</text>`;
+    }
+  }
+
+  // Month labels
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let lastMonth = -1;
+  let lastLabelX = -100;
+  weeks.forEach((week, wi) => {
+    const firstDay = week[0];
+    const d = new Date(firstDay.date);
+    const m = d.getMonth();
+    const x = labelWidth + wi * step;
+    if (m !== lastMonth && (x - lastLabelX) > 28) {
+      lastMonth = m;
+      lastLabelX = x;
+      svg += `<text class="cal-month" x="${x}" y="${10}">${months[m]}</text>`;
+    }
+  });
+
+  // Cells
+  weeks.forEach((week, wi) => {
+    week.forEach(cell => {
+      const x = labelWidth + wi * step;
+      const y = headerHeight + cell.dow * step;
+      const color = cellColor(cell.count);
+      svg += `<rect class="cal-cell" x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="${color}" data-date="${cell.date}" data-count="${cell.count}"/>`;
+    });
+  });
+
+  svg += '</svg>';
+
+  // Legend
+  svg += `<div class="cal-legend">
+    <span>Less</span>
+    <div class="cal-legend-cell" style="background:${emptyColor}"></div>
+    ${greenScale.map(c => `<div class="cal-legend-cell" style="background:${c}"></div>`).join('')}
+    <span>More</span>
+  </div>`;
+
+  container.innerHTML = svg;
+
+  // Tooltip
+  let tooltip = document.getElementById('cal-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'cal-tooltip';
+    tooltip.className = 'cal-tooltip';
+    tooltip.style.display = 'none';
+    document.body.appendChild(tooltip);
+  }
+
+  container.addEventListener('mouseover', e => {
+    const rect = e.target.closest('.cal-cell');
+    if (!rect) { tooltip.style.display = 'none'; return; }
+    const date = rect.getAttribute('data-date');
+    const count = rect.getAttribute('data-count');
+    const d = new Date(date + 'T00:00:00');
+    const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    tooltip.textContent = `${count} session${count !== '1' ? 's' : ''} on ${label}`;
+    tooltip.style.display = 'block';
+    const r = rect.getBoundingClientRect();
+    let left = r.left + r.width / 2 - tooltip.offsetWidth / 2;
+    let top = r.top - tooltip.offsetHeight - 6;
+    // Clamp to viewport
+    left = Math.max(8, Math.min(left, window.innerWidth - tooltip.offsetWidth - 8));
+    if (top < 8) top = r.bottom + 6;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  });
+  container.addEventListener('mouseout', e => {
+    if (e.target.closest('.cal-cell')) tooltip.style.display = 'none';
+  });
+}
+
 function renderHeatmap(data) {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const maxCount = Math.max(...data.map(d => d.count), 1);
   const grid = {};
   data.forEach(d => { grid[d.day + '-' + d.hour] = d; });
+
+  const accentColor = getCSSVar('--accent');
+  const emptyBg = getCSSVar('--surface2');
 
   let html = '<div class="heatmap"><div></div>';
   for (let h = 0; h < 24; h++) html += `<div class="heatmap-header">${h}</div>`;
@@ -1340,7 +1806,7 @@ function renderHeatmap(data) {
       const cell = grid[d + '-' + h];
       const count = cell ? cell.count : 0;
       const intensity = count / maxCount;
-      const bg = count > 0 ? `rgba(99,102,241,${0.15 + intensity * 0.75})` : 'rgba(255,255,255,0.03)';
+      const bg = count > 0 ? `color-mix(in srgb, ${accentColor} ${(15 + intensity * 75).toFixed(0)}%, transparent)` : emptyBg;
       html += `<div class="heatmap-cell" style="background:${bg}" title="${days[d]} ${h}:00 - ${count} sessions">${count || ''}</div>`;
     }
   }
@@ -1397,8 +1863,16 @@ async function init() {
   const barEl = document.getElementById('refresh-bar');
   const btn = document.getElementById('refresh-btn');
 
-  // Load the page immediately with whatever data exists
+  // Show progress bar during initialization
+  progressEl.style.display = 'block';
+  stepEl.textContent = 'Starting up...';
+  barEl.style.width = '10%';
+  countEl.textContent = '';
+
+  // Connect to server and get initial config
   try {
+    stepEl.textContent = 'Connecting to server...';
+    barEl.style.width = '20%';
     const [projects, skillDims] = await Promise.all([
       api('/api/projects'),
       api('/api/skills/dimensions'),
@@ -1407,39 +1881,62 @@ async function init() {
     window._skillDims = skillDims.dimensions;
   } catch (e) {
     // Server not up yet — show connecting state and retry
-    progressEl.style.display = 'block';
-    stepEl.textContent = 'Connecting...';
+    stepEl.textContent = 'Server not ready, retrying...';
     barEl.style.width = '0%';
-    countEl.textContent = '';
     setTimeout(init, 1000);
     return;
   }
 
-  // Load the main content
-  await Promise.all([
-    loadVerdict(),
-    loadChangeCards(),
-    loadSessions(false),
-  ]);
+  // Check if background worker is busy processing data
+  stepEl.textContent = 'Checking background worker...';
+  barEl.style.width = '30%';
+  let status = await api('/api/status');
 
-  // Connect to SSE for real-time updates
-  connectEventStream();
+  // If worker is busy, wait for it to finish while showing its progress
+  while (!status.ready) {
+    // Show the worker's detailed progress
+    stepEl.textContent = status.step || 'Processing...';
+    if (status.total > 0) {
+      const pct = Math.round(status.current / status.total * 100);
+      barEl.style.width = pct + '%';
+      countEl.textContent = `${status.current} / ${status.total}`;
+    } else {
+      barEl.style.width = '50%';
+      countEl.textContent = '';
+    }
+
+    // Wait 1 second before checking again
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    status = await api('/api/status');
+  }
+
+  // Worker is ready, now load the UI data
+  countEl.textContent = ''; // Clear count - no meaningful progress here
+
+  stepEl.textContent = 'Loading verdict...';
+  barEl.style.width = '70%';
+  await loadVerdict();
+
+  stepEl.textContent = 'Loading prescriptions...';
+  barEl.style.width = '80%';
+  await loadChangeCards();
+
+  stepEl.textContent = 'Loading sessions...';
+  barEl.style.width = '90%';
+  await loadSessions(false);
+
+  // Complete!
+  stepEl.textContent = 'Ready!';
+  barEl.style.width = '100%';
+  setTimeout(() => {
+    progressEl.style.display = 'none';
+  }, 1000);
+
+  // Start simple polling for background status
+  pollBackgroundStatus();
 
   // Load version info
   loadVersionInfo();
-
-  // Check initial status in case worker already completed
-  setTimeout(async () => {
-    try {
-      const status = await api('/api/status');
-      if (status.ready) {
-        // Worker is idle, ensure data is loaded
-        await Promise.all([loadVerdict(), loadChangeCards(), loadSessions(false)]);
-      }
-    } catch (e) {
-      console.error('Failed to check initial status:', e);
-    }
-  }, 1000);
 }
 
 async function loadVersionInfo() {
@@ -1478,7 +1975,7 @@ document.addEventListener('keydown', (e) => {
   // j/k - Navigate sessions
   if ((e.key === 'j' || e.key === 'k') && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
-    const sessions = Array.from(document.querySelectorAll('.session-card'));
+    const sessions = Array.from(document.querySelectorAll('.s-card'));
     if (sessions.length === 0) return;
 
     let currentIndex = sessions.findIndex(s => s.classList.contains('expanded'));
@@ -1510,43 +2007,8 @@ e - Export (coming soon)
   }
 });
 
-// SSE connection for real-time updates
-let eventSource = null;
-let wasWorking = false;
-let statusUpdateTimeout = null;
-
-function connectEventStream() {
-  if (eventSource) {
-    eventSource.close();
-  }
-
-  eventSource = new EventSource('/api/events');
-
-  eventSource.addEventListener('status', (e) => {
-    const status = JSON.parse(e.data);
-
-    // Debounce rapid status updates (but show immediately if judging)
-    if (status.state === 'judging' || status.total > 10) {
-      updateBackgroundStatus(status);
-    } else {
-      // For quick ingestion updates, debounce to avoid flicker
-      clearTimeout(statusUpdateTimeout);
-      statusUpdateTimeout = setTimeout(() => {
-        updateBackgroundStatus(status);
-      }, 500);
-    }
-  });
-
-  eventSource.onerror = (e) => {
-    console.error('EventSource error:', e);
-    // Auto-reconnect on error
-    setTimeout(() => {
-      if (eventSource.readyState === EventSource.CLOSED) {
-        connectEventStream();
-      }
-    }, 3000);
-  };
-}
+// Simple polling for background status (no SSE complexity)
+let lastSeenState = null;
 
 async function updateBackgroundStatus(status) {
   const progressEl = document.getElementById('refresh-progress');
@@ -1555,9 +2017,13 @@ async function updateBackgroundStatus(status) {
   const barEl = document.getElementById('refresh-bar');
   const btn = document.getElementById('refresh-btn');
 
+  const currentState = status.ready ? 'idle' : status.state;
+
   if (!status.ready) {
-    // Show inline progress bar
-    progressEl.style.display = 'block';
+    // Show inline progress bar (only if not already visible to avoid repaints)
+    if (progressEl.style.display !== 'block') {
+      progressEl.style.display = 'block';
+    }
     stepEl.textContent = status.step || 'Working...';
     btn.disabled = true;
     btn.textContent = status.state === 'judging' ? 'Judging...' : 'Running...';
@@ -1570,15 +2036,13 @@ async function updateBackgroundStatus(status) {
       barEl.style.width = '10%';
       countEl.textContent = '';
     }
-
-    wasWorking = true;
   } else {
-    // Background work is done - always update button state first
+    // Background work is done
     btn.disabled = false;
     btn.textContent = 'Run LLM Judge';
 
-    if (wasWorking) {
-      // Was showing progress — reload data
+    // If we just transitioned from working to idle, reload data
+    if (lastSeenState !== null && lastSeenState !== 'idle' && currentState === 'idle') {
       stepEl.textContent = 'Complete!';
       barEl.style.width = '100%';
       countEl.textContent = '';
@@ -1593,15 +2057,18 @@ async function updateBackgroundStatus(status) {
       if (activeTab) switchTab(activeTab.dataset.tab);
 
       setTimeout(() => { progressEl.style.display = 'none'; }, 2000);
-      wasWorking = false;
     } else {
-      // Worker was already idle when we connected - hide progress immediately
-      progressEl.style.display = 'none';
+      // Worker was already idle - hide progress immediately (avoid unnecessary repaints)
+      if (progressEl.style.display !== 'none') {
+        progressEl.style.display = 'none';
+      }
     }
   }
+
+  lastSeenState = currentState;
 }
 
-// Fallback polling for when SSE is not available
+// Poll background status every 2 seconds
 async function pollBackgroundStatus() {
   try {
     const status = await api('/api/status');
