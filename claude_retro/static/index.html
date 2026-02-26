@@ -763,13 +763,28 @@ tr:hover td { background: var(--surface2); }
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;
 }
 @media (max-width: 600px) { .at-a-glance .glance-grid { grid-template-columns: 1fr; } }
+.at-a-glance .glance-item {
+  border-left: 3px solid var(--border-muted);
+  padding-left: 10px;
+}
+.at-a-glance .glance-item.glance-working   { border-left-color: var(--green); }
+.at-a-glance .glance-item.glance-hindering { border-left-color: var(--red); }
+.at-a-glance .glance-item.glance-wins      { border-left-color: var(--blue); }
+.at-a-glance .glance-item.glance-ambitious { border-left-color: var(--purple); }
 .at-a-glance .glance-item h3 {
-  font-size: 11px; font-weight: 700; color: var(--text-dim);
-  text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 4px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 6px;
 }
-.at-a-glance .glance-item p {
-  font-size: 13px; color: var(--text-sec); line-height: 1.6;
+.at-a-glance .glance-item.glance-working   h3 { color: var(--green); }
+.at-a-glance .glance-item.glance-hindering h3 { color: var(--red); }
+.at-a-glance .glance-item.glance-wins      h3 { color: var(--blue); }
+.at-a-glance .glance-item.glance-ambitious h3 { color: var(--purple); }
+.at-a-glance .glance-item p, .at-a-glance .glance-item ol {
+  font-size: 13px; color: var(--text-sec); line-height: 1.6; margin: 0;
 }
+.at-a-glance .glance-item ol {
+  padding-left: 18px; display: flex; flex-direction: column; gap: 4px;
+}
+.at-a-glance .glance-item ol li { padding-left: 2px; }
 
 /* Win/Friction cards */
 .win-card, .friction-card, .claude-md-card, .highlight-card {
@@ -1341,6 +1356,17 @@ function fmtDate(d) {
 }
 function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '...' : (s || ''); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtGlance(text) {
+  if (!text) return '<p></p>';
+  // Detect inline numbered lists: "1) foo. 2) bar." or newline-separated
+  const inlineSplit = text.split(/(?=\b\d+\)\s)/);
+  const numbered = inlineSplit.filter(s => /^\d+\)\s/.test(s.trim()));
+  if (numbered.length > 1) {
+    const items = numbered.map(s => `<li>${esc(s.replace(/^\d+\)\s*/, '').trim())}</li>`).join('');
+    return `<ol>${items}</ol>`;
+  }
+  return `<p>${esc(text)}</p>`;
+}
 function shortProject(name) { return (name || '').replace(/-Users-npow-code-/g, '').replace(/-Users-npow-/g, ''); }
 function destroyChart(key) { if (charts[key]) { charts[key].destroy(); delete charts[key]; } }
 
@@ -1698,10 +1724,10 @@ async function loadSynthesis() {
     if (glance && typeof glance === 'object') {
       const grid = document.getElementById('glance-grid');
       grid.innerHTML = `
-        <div class="glance-item"><h3>What's Working</h3><p>${glance.whats_working || ''}</p></div>
-        <div class="glance-item"><h3>What's Hindering</h3><p>${glance.whats_hindering || ''}</p></div>
-        <div class="glance-item"><h3>Quick Wins</h3><p>${glance.quick_wins || ''}</p></div>
-        <div class="glance-item"><h3>Ambitious Workflows</h3><p>${glance.ambitious_workflows || ''}</p></div>
+        <div class="glance-item glance-working"><h3>What's Working</h3>${fmtGlance(glance.whats_working)}</div>
+        <div class="glance-item glance-hindering"><h3>What's Hindering</h3>${fmtGlance(glance.whats_hindering)}</div>
+        <div class="glance-item glance-wins"><h3>Quick Wins</h3>${fmtGlance(glance.quick_wins)}</div>
+        <div class="glance-item glance-ambitious"><h3>Ambitious Workflows</h3>${fmtGlance(glance.ambitious_workflows)}</div>
       `;
       document.getElementById('at-a-glance').style.display = 'block';
     }
