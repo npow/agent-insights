@@ -2618,7 +2618,7 @@ function renderSessionTree() {
           ${prod != null ? `<span class="st-stat" style="color:${pc(prod)}">${fmtPct(prod)} prod</span>` : ''}
           ${comp != null ? `<span class="st-stat" style="color:${pc(comp)}">${fmtPct(comp)} done</span>` : ''}
           ${p.total_errors ? `<span class="st-stat" style="color:var(--red)">${p.total_errors} err</span>` : ''}
-          <span class="st-stat">${fmtTokens(totalTok)}</span>
+          ${totalTok > 0 ? `<span class="st-stat">${fmtTokens(totalTok)} tok</span>` : ''}
         </div>
       </div>
       <div class="st-sessions" style="display:${isOpen ? 'block' : 'none'}">
