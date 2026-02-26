@@ -1118,25 +1118,15 @@ tr:hover td { background: var(--surface2); }
     <!-- Content loaded by JS -->
   </div>
 
-  <!-- Section nav — jump links that appear when synthesis exists -->
+  <!-- Section nav — live scroll sections only -->
   <nav class="section-nav" id="section-nav" style="display:none">
     <a href="#at-a-glance" onclick="scrollToSection(event,'at-a-glance')">Glance</a>
-    <a href="#changes-section" onclick="scrollToSection(event,'changes-section')">Actions</a>
-    <a href="#claude-md-section" onclick="scrollToSection(event,'claude-md-section')">CLAUDE.md</a>
-    <a href="#workflow-prompts-section" onclick="scrollToSection(event,'workflow-prompts-section')">Workflow</a>
     <a href="#wins-section" onclick="scrollToSection(event,'wins-section')">Wins</a>
     <a href="#friction-section" onclick="scrollToSection(event,'friction-section')">Friction</a>
-    <a href="#features-section" onclick="scrollToSection(event,'features-section')">Features</a>
-    <a href="#usage-narrative-section" onclick="scrollToSection(event,'usage-narrative-section')">Profile</a>
     <a href="#highlights-section" onclick="scrollToSection(event,'highlights-section')">Highlights</a>
-    <a href="#activity-section" onclick="scrollToSection(event,'activity-section')">Activity</a>
-    <a href="#tab-sessions" onclick="scrollToSection(event,'tab-sessions');switchTab('sessions')">Sessions</a>
   </nav>
 
-  <!-- Skill nudges (shown below verdict if any active nudges) -->
-  <div id="skill-nudges-section" style="display:none"></div>
-
-  <!-- 2. AT A GLANCE (from synthesis) — collapsible -->
+  <!-- AT A GLANCE (from synthesis) — collapsible -->
   <div class="narrative-section at-a-glance" id="at-a-glance" style="display:none">
     <div class="ns-header" onclick="this.parentElement.classList.toggle('collapsed')">
       <h2>At a Glance</h2>
@@ -1147,32 +1137,7 @@ tr:hover td { background: var(--surface2); }
     </div>
   </div>
 
-  <!-- 3. CHANGE THESE 3 THINGS -->
-  <div id="changes-section" style="display:none">
-    <div class="section-label">Change These 3 Things</div>
-    <div class="change-cards" id="change-cards"></div>
-  </div>
-
-  <!-- 4. CLAUDE.md SUGGESTIONS (auto-applied) -->
-  <div id="claude-md-section" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div class="section-label" style="color:var(--blue);margin-bottom:0">CLAUDE.md Suggestions</div>
-      <span id="claude-md-status" style="font-size:10px;color:var(--green);font-weight:500"></span>
-    </div>
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">These rules are automatically added to each project's CLAUDE.md after judging.</div>
-    <div id="claude-md-container"></div>
-  </div>
-
-  <!-- 5. WORKFLOW PROMPTS — paste-ready prompts for your friction patterns -->
-  <div id="workflow-prompts-section" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div class="section-label" style="color:var(--accent);margin-bottom:0">Paste Into Claude Code</div>
-    </div>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Ready-to-use prompts that address your specific friction patterns. Paste directly into Claude Code, fill in the brackets.</p>
-    <div id="workflow-prompts-list"></div>
-  </div>
-
-  <!-- 6/7. WINS + FRICTION — side by side on wide screens -->
+  <!-- WINS + FRICTION — side by side on wide screens -->
   <div id="wins-friction-row" style="display:none;margin-bottom:16px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div id="wins-section">
@@ -1187,26 +1152,7 @@ tr:hover td { background: var(--surface2); }
     </div>
   </div>
 
-  <!-- 8. FEATURES TO TRY -->
-  <div id="features-section" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div class="section-label" style="color:#22c55e;margin-bottom:0">Features to Try</div>
-    </div>
-    <div id="features-list"></div>
-  </div>
-
-  <!-- 9. USAGE NARRATIVE — moved after evidence -->
-  <div class="narrative-section" id="usage-narrative-section" style="display:none">
-    <div class="ns-header" onclick="this.parentElement.classList.toggle('collapsed')">
-      <h2 style="color:var(--accent2)">How You Work</h2>
-      <span class="ns-toggle">&#9660;</span>
-    </div>
-    <div class="ns-body">
-      <div class="prose" id="usage-narrative"></div>
-    </div>
-  </div>
-
-  <!-- 8. SESSION HIGHLIGHTS — starts collapsed -->
+  <!-- SESSION HIGHLIGHTS — starts collapsed -->
   <div class="narrative-section collapsed" id="highlights-section" style="display:none">
     <div class="ns-header" onclick="this.parentElement.classList.toggle('collapsed')">
       <h2 style="color:var(--purple)">Session Highlights</h2>
@@ -1215,30 +1161,14 @@ tr:hover td { background: var(--surface2); }
     <div class="ns-body" id="highlights-container"></div>
   </div>
 
-  <!-- 9. FUN HEADLINE -->
+  <!-- FUN HEADLINE -->
   <div class="fun-headline" id="fun-headline" style="display:none"></div>
-
-  <!-- 10. ACTIVITY CHARTS (always visible) -->
-  <div id="activity-section">
-    <div class="section-label">Activity</div>
-    <div style="display:grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; margin-bottom:12px">
-      <div class="chart-card">
-        <h3>Contribution Calendar</h3>
-        <div id="calendar-container" class="cal-heatmap"></div>
-      </div>
-      <div class="chart-card">
-        <h3>Activity by Day &amp; Hour</h3>
-        <div id="heatmap-container"></div>
-      </div>
-    </div>
-    <div class="chart-card" style="margin-bottom:12px">
-      <h3>Productivity Trend</h3><div class="chart-wrap"><canvas id="chart-trends"></canvas></div>
-    </div>
-  </div>
 
   <!-- TAB BAR -->
   <div class="tab-bar">
+    <button class="tab-btn" data-tab="actions" onclick="switchTab('actions')">Actions <span id="actions-dot" style="display:none;width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;vertical-align:middle;margin-left:4px"></span></button>
     <button class="tab-btn active" data-tab="sessions" onclick="switchTab('sessions')">Sessions</button>
+    <button class="tab-btn" data-tab="charts" onclick="switchTab('charts')">Charts</button>
   </div>
 
   <!-- TAB: Sessions -->
@@ -1278,6 +1208,70 @@ tr:hover td { background: var(--surface2); }
     </div>
   </div>
 
+  <!-- TAB: Actions (prescriptions — changes slowly) -->
+  <div class="tab-content" id="tab-actions">
+    <!-- Skill nudges -->
+    <div id="skill-nudges-section" style="display:none"></div>
+
+    <!-- Change These 3 Things -->
+    <div id="changes-section" style="display:none">
+      <div class="section-label">Change These 3 Things</div>
+      <div class="change-cards" id="change-cards"></div>
+    </div>
+
+    <!-- CLAUDE.md Suggestions -->
+    <div id="claude-md-section" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="section-label" style="color:var(--blue);margin-bottom:0">CLAUDE.md Suggestions</div>
+        <span id="claude-md-status" style="font-size:10px;color:var(--green);font-weight:500"></span>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">Written to your project CLAUDE.md files after each judge run.</div>
+      <div id="claude-md-container"></div>
+    </div>
+
+    <!-- Workflow Prompts -->
+    <div id="workflow-prompts-section" style="display:none">
+      <div class="section-label" style="color:var(--accent);margin-bottom:8px">Paste Into Claude Code</div>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Ready-to-use prompts that address your specific friction patterns. Paste directly into Claude Code, fill in the brackets.</p>
+      <div id="workflow-prompts-list"></div>
+    </div>
+
+    <!-- Features to Try -->
+    <div id="features-section" style="display:none">
+      <div class="section-label" style="color:#22c55e;margin-bottom:8px">Features to Try</div>
+      <div id="features-list"></div>
+    </div>
+
+    <!-- Usage Narrative -->
+    <div class="narrative-section" id="usage-narrative-section" style="display:none">
+      <div class="ns-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <h2 style="color:var(--accent2)">How You Work</h2>
+        <span class="ns-toggle">&#9660;</span>
+      </div>
+      <div class="ns-body">
+        <div class="prose" id="usage-narrative"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Charts -->
+  <div class="tab-content" id="tab-charts">
+    <div id="activity-section">
+      <div style="display:grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; margin-bottom:12px">
+        <div class="chart-card">
+          <h3>Contribution Calendar</h3>
+          <div id="calendar-container" class="cal-heatmap"></div>
+        </div>
+        <div class="chart-card">
+          <h3>Activity by Day &amp; Hour</h3>
+          <div id="heatmap-container"></div>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:12px">
+        <h3>Productivity Trend</h3><div class="chart-wrap"><canvas id="chart-trends"></canvas></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Footer -->
   <div class="footer">
@@ -1336,7 +1330,7 @@ function getCSSVar(name) {
 }
 
 function reRenderChartsForTheme() {
-  loadCharts();
+  if (_chartsLoaded) loadCharts();
   loadSkills();
 }
 
@@ -2008,6 +2002,9 @@ function scrollToSection(event, id) {
 
 function showSectionNav() {
   document.getElementById('section-nav').style.display = 'flex';
+  // Show dot on Actions tab to signal content is ready
+  const dot = document.getElementById('actions-dot');
+  if (dot) dot.style.display = 'inline-block';
 }
 
 function copyRule(btn, index) {
@@ -2679,11 +2676,23 @@ document.getElementById('tree-sort').addEventListener('change', e => {
 });
 
 // ===== TABS =====
+let _chartsLoaded = false;
 function switchTab(tabName) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.querySelector(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
   document.getElementById('tab-' + tabName).classList.add('active');
+  if (tabName === 'charts') {
+    if (!_chartsLoaded) {
+      _chartsLoaded = true;
+      loadCharts();
+    } else {
+      // Resize Chart.js canvases now that container is visible
+      requestAnimationFrame(() => {
+        Object.values(charts).forEach(c => { try { c.resize(); } catch(e){} });
+      });
+    }
+  }
 }
 
 // ===== SKILLS (radar + legend in verdict) =====
@@ -3272,9 +3281,10 @@ async function init() {
   barEl.style.width = '88%';
   await loadSessions(false);
 
-  stepEl.textContent = 'Loading charts...';
+  stepEl.textContent = 'Loading data...';
   barEl.style.width = '93%';
-  await Promise.all([loadCharts(), loadProjectHealth(), loadSkills(), loadFrictionCategories()]);
+  _chartsLoaded = false;
+  await Promise.all([loadProjectHealth(), loadSkills(), loadFrictionCategories()]);
 
   // Complete!
   stepEl.textContent = 'Ready!';
@@ -3409,7 +3419,8 @@ async function updateBackgroundStatus(status) {
       await Promise.all([loadVerdict(), loadChangeCards(), loadSynthesis(), loadHighlights()]);
       expandedSessionId = null;
       await loadSessions(false);
-      await Promise.all([loadCharts(), loadProjectHealth(), loadSkills(), loadFrictionCategories()]);
+      _chartsLoaded = false;
+      await Promise.all([loadProjectHealth(), loadSkills(), loadFrictionCategories()]);
 
       setTimeout(() => { progressEl.style.display = 'none'; }, 2000);
     } else {
