@@ -353,6 +353,33 @@ def api_session_detail(session_id):
     return jsonify(result)
 
 
+@app.route("/api/sessions/<session_id>/judgment")
+def api_session_judgment(session_id):
+    conn = get_conn()
+    cursor = conn.execute(
+        "SELECT * FROM session_judgments WHERE session_id = ?", [session_id]
+    )
+    judgment = cursor.fetchone()
+    if not judgment:
+        return jsonify({"error": "No judgment found"}), 404
+    cols = [d[0] for d in cursor.description]
+    jd = _row_to_dict(judgment, cols)
+    for field in (
+        "prompt_missing",
+        "underspecified_parts",
+        "misalignments",
+        "corrections",
+        "waste_breakdown",
+        "friction_categories",
+    ):
+        if jd.get(field) and isinstance(jd[field], str):
+            try:
+                jd[field] = json.loads(jd[field])
+            except (json.JSONDecodeError, ValueError):
+                pass
+    return jsonify(jd)
+
+
 @app.route("/api/sessions/<session_id>/timeline")
 def api_session_timeline(session_id):
     conn = get_conn()

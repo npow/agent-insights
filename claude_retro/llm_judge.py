@@ -116,9 +116,12 @@ def build_session_summary(session_id: str, conn) -> tuple[str, int]:
         elif entry_type == "assistant":
             if tool_names:
                 turn_num += 1
-                # tool_names from DB is a comma-separated string
+                # tool_names from DB is stored as a JSON array string
                 if isinstance(tool_names, str):
-                    tools_list = [t.strip() for t in tool_names.split(",")]
+                    try:
+                        tools_list = json.loads(tool_names)
+                    except (json.JSONDecodeError, ValueError):
+                        tools_list = [t.strip() for t in tool_names.split(",")]
                 else:
                     tools_list = list(tool_names)
 
