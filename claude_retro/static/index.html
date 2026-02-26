@@ -2081,6 +2081,7 @@ async function loadSessions(append) {
           <span>${fmtDuration(s.duration_seconds)}</span>
           <span class="sep">&middot;</span>
           <span>${s.turn_count} msgs</span>
+          ${s.tool_use_count > 0 ? `<span class="sep">&middot;</span><span>${s.tool_use_count} tools</span>` : ''}
           ${s.misalignment_count > 0 ? `<span class="sep">&middot;</span><span style="color:var(--red)">${s.misalignment_count} issue${s.misalignment_count > 1 ? 's' : ''}</span>` : ''}
         </div>
       </div>
@@ -2661,6 +2662,7 @@ async function loadProjectSessions(projectName) {
           <span>${fmtDuration(s.duration_seconds)}</span>
           <span class="sep">&middot;</span>
           <span>${s.turn_count} msgs</span>
+          ${s.tool_use_count > 0 ? `<span class="sep">&middot;</span><span>${s.tool_use_count} tools</span>` : ''}
           ${s.misalignment_count > 0 ? `<span class="sep">&middot;</span><span style="color:var(--red)">${s.misalignment_count} issue${s.misalignment_count > 1 ? 's' : ''}</span>` : ''}
         </div>
       </div>
