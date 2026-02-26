@@ -1023,10 +1023,16 @@ tr:hover td { background: var(--surface2); }
 .footer a:hover { text-decoration: underline; }
 
 /* ===== WORKFLOW PROMPTS ===== */
+#workflow-prompts-list, #features-list {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+}
+@media (max-width: 700px) {
+  #workflow-prompts-list, #features-list { grid-template-columns: 1fr; }
+}
 .workflow-card {
   background: var(--surface); border: 1px solid var(--border-muted);
   border-left: 4px solid var(--accent); border-radius: var(--radius);
-  padding: 16px; margin-bottom: 12px;
+  padding: 16px; margin-bottom: 0;
 }
 .workflow-card.wrong_approach { border-left-color: #ef4444; }
 .workflow-card.buggy_code { border-left-color: #f97316; }
@@ -1116,12 +1122,12 @@ tr:hover td { background: var(--surface2); }
   <nav class="section-nav" id="section-nav" style="display:none">
     <a href="#at-a-glance" onclick="scrollToSection(event,'at-a-glance')">Glance</a>
     <a href="#changes-section" onclick="scrollToSection(event,'changes-section')">Actions</a>
-    <a href="#usage-narrative-section" onclick="scrollToSection(event,'usage-narrative-section')">Profile</a>
-    <a href="#wins-section" onclick="scrollToSection(event,'wins-section')">Wins</a>
-    <a href="#friction-section" onclick="scrollToSection(event,'friction-section')">Friction</a>
     <a href="#claude-md-section" onclick="scrollToSection(event,'claude-md-section')">CLAUDE.md</a>
     <a href="#workflow-prompts-section" onclick="scrollToSection(event,'workflow-prompts-section')">Workflow</a>
+    <a href="#wins-section" onclick="scrollToSection(event,'wins-section')">Wins</a>
+    <a href="#friction-section" onclick="scrollToSection(event,'friction-section')">Friction</a>
     <a href="#features-section" onclick="scrollToSection(event,'features-section')">Features</a>
+    <a href="#usage-narrative-section" onclick="scrollToSection(event,'usage-narrative-section')">Profile</a>
     <a href="#highlights-section" onclick="scrollToSection(event,'highlights-section')">Highlights</a>
     <a href="#activity-section" onclick="scrollToSection(event,'activity-section')">Activity</a>
     <a href="#tab-sessions" onclick="scrollToSection(event,'tab-sessions');switchTab('sessions')">Sessions</a>
@@ -1147,18 +1153,26 @@ tr:hover td { background: var(--surface2); }
     <div class="change-cards" id="change-cards"></div>
   </div>
 
-  <!-- 4. USAGE NARRATIVE — starts expanded -->
-  <div class="narrative-section" id="usage-narrative-section" style="display:none">
-    <div class="ns-header" onclick="this.parentElement.classList.toggle('collapsed')">
-      <h2 style="color:var(--accent2)">How You Work</h2>
-      <span class="ns-toggle">&#9660;</span>
+  <!-- 4. CLAUDE.md SUGGESTIONS (auto-applied) -->
+  <div id="claude-md-section" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="section-label" style="color:var(--blue);margin-bottom:0">CLAUDE.md Suggestions</div>
+      <span id="claude-md-status" style="font-size:10px;color:var(--green);font-weight:500"></span>
     </div>
-    <div class="ns-body">
-      <div class="prose" id="usage-narrative"></div>
-    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">These rules are automatically added to each project's CLAUDE.md after judging.</div>
+    <div id="claude-md-container"></div>
   </div>
 
-  <!-- 5/6 WINS + FRICTION — side by side on wide screens -->
+  <!-- 5. WORKFLOW PROMPTS — paste-ready prompts for your friction patterns -->
+  <div id="workflow-prompts-section" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="section-label" style="color:var(--accent);margin-bottom:0">Paste Into Claude Code</div>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Ready-to-use prompts that address your specific friction patterns. Paste directly into Claude Code, fill in the brackets.</p>
+    <div id="workflow-prompts-list"></div>
+  </div>
+
+  <!-- 6/7. WINS + FRICTION — side by side on wide screens -->
   <div id="wins-friction-row" style="display:none;margin-bottom:16px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div id="wins-section">
@@ -1173,31 +1187,23 @@ tr:hover td { background: var(--surface2); }
     </div>
   </div>
 
-  <!-- 7. CLAUDE.md SUGGESTIONS (auto-applied) -->
-  <div id="claude-md-section" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div class="section-label" style="color:var(--blue);margin-bottom:0">CLAUDE.md Suggestions</div>
-      <span id="claude-md-status" style="font-size:10px;color:var(--green);font-weight:500"></span>
-    </div>
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">These rules are automatically added to each project's CLAUDE.md after judging.</div>
-    <div id="claude-md-container"></div>
-  </div>
-
-  <!-- 7b. WORKFLOW PROMPTS — paste-ready prompts for your friction patterns -->
-  <div id="workflow-prompts-section" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div class="section-label" style="color:var(--accent);margin-bottom:0">Paste Into Claude Code</div>
-    </div>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Ready-to-use prompts that address your specific friction patterns. Paste directly into Claude Code, fill in the brackets.</p>
-    <div id="workflow-prompts-list"></div>
-  </div>
-
-  <!-- 7c. FEATURES TO TRY -->
+  <!-- 8. FEATURES TO TRY -->
   <div id="features-section" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div class="section-label" style="color:#22c55e;margin-bottom:0">Features to Try</div>
     </div>
     <div id="features-list"></div>
+  </div>
+
+  <!-- 9. USAGE NARRATIVE — moved after evidence -->
+  <div class="narrative-section" id="usage-narrative-section" style="display:none">
+    <div class="ns-header" onclick="this.parentElement.classList.toggle('collapsed')">
+      <h2 style="color:var(--accent2)">How You Work</h2>
+      <span class="ns-toggle">&#9660;</span>
+    </div>
+    <div class="ns-body">
+      <div class="prose" id="usage-narrative"></div>
+    </div>
   </div>
 
   <!-- 8. SESSION HIGHLIGHTS — starts collapsed -->
@@ -1825,9 +1831,9 @@ function renderWorkflowPrompts(prompts) {
       </div>
       <div class="workflow-description">${esc(p.description || '')}</div>
       <div class="workflow-paste-label">PASTE INTO CLAUDE CODE:</div>
-      <div class="workflow-paste-box" style="position:relative">
-        ${esc(p.paste_prompt || '')}
-        <button class="workflow-copy-btn" onclick="copyWorkflow(this, ${JSON.stringify(p.paste_prompt || '')})">Copy</button>
+      <div class="workflow-paste-box" style="position:relative" data-copy="${esc((p.paste_prompt||'').trim())}">
+        ${esc((p.paste_prompt || '').trim())}
+        <button class="workflow-copy-btn" onclick="copyWorkflow(this)">Copy</button>
       </div>
     </div>
   `).join('');
@@ -1849,17 +1855,26 @@ function renderFeaturesToTry(features) {
       </div>
       <div class="feature-why">${esc(f.why_for_you || '')}</div>
       <div class="workflow-paste-label">SETUP:</div>
-      <div class="workflow-paste-box" style="position:relative">
-        ${esc(f.setup_code || '')}
-        <button class="workflow-copy-btn" onclick="copyWorkflow(this, ${JSON.stringify(f.setup_code || '')})">Copy</button>
+      <div class="workflow-paste-box" style="position:relative" data-copy="${esc((f.setup_code||'').trim())}">
+        ${esc((f.setup_code || '').trim())}
+        <button class="workflow-copy-btn" onclick="copyWorkflow(this)">Copy</button>
       </div>
     </div>
   `).join('');
   section.style.display = 'block';
 }
 
-function copyWorkflow(btn, text) {
+function copyWorkflow(btn) {
+  const text = btn.parentElement.dataset.copy;
   navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  }).catch(() => {
+    // fallback for non-https contexts
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
   });
