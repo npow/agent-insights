@@ -3257,7 +3257,7 @@ async function loadCharts() {
          todData, rtData, mcData, frictionData, toolErrData, langData, bashData] = await Promise.all([
     api('/api/heatmap'),
     api('/api/heatmap/calendar'),
-    api('/api/sessions?limit=50&sort=started_at+ASC'),
+    api('/api/sessions?limit=50&sort=started_at+DESC'),
     api('/api/intents'),
     api('/api/tools'),
     api('/api/judgments/stats'),

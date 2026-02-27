@@ -2758,6 +2758,45 @@ def _categorize_friction(desc_lower: str) -> str:
     return "Misunderstood Request"
 
 
+def _parse_waste_breakdown(raw):
+    """Parse waste_breakdown JSON payload into counts dict."""
+    if not raw:
+        return {}
+    try:
+        obj = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return {}
+    if not isinstance(obj, dict):
+        return {}
+    out = {}
+    for k in ("misalignment", "errors", "rework"):
+        try:
+            out[k] = int(obj.get(k, 0) or 0)
+        except Exception:
+            out[k] = 0
+    return out
+
+
+def _fallback_waste_categories(
+    waste_breakdown_raw, tool_error_count: int, waste_turns: int
+) -> set[str]:
+    """Infer friction categories when misalignment descriptions are absent."""
+    cats = set()
+    wb = _parse_waste_breakdown(waste_breakdown_raw)
+
+    if (tool_error_count or 0) > 0 or wb.get("errors", 0) > 0:
+        cats.add("Tool/Bash Error")
+    if wb.get("rework", 0) > 0:
+        cats.add("Repeated Failure")
+    if wb.get("misalignment", 0) > 0:
+        cats.add("Misunderstood Request")
+
+    # If we still only know there was waste, attribute to strategy friction.
+    if not cats and (waste_turns or 0) > 0:
+        cats.add("Wrong Approach")
+    return cats
+
+
 @app.route("/api/groundhog-day")
 def api_groundhog_day():
     """Detect repeated friction patterns across sessions (Groundhog Day detector)."""
@@ -2826,7 +2865,8 @@ def api_lost_hours():
     conn = get_conn()
 
     rows = conn.execute("""
-        SELECT j.waste_turns, j.misalignments, s.duration_seconds, s.turn_count,
+        SELECT j.waste_turns, j.misalignments, j.waste_breakdown,
+               s.duration_seconds, s.turn_count, s.tool_error_count,
                j.estimated_cost_usd
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
@@ -2841,7 +2881,15 @@ def api_lost_hours():
     total_waste_hours = 0.0
     total_cost_usd = 0.0
 
-    for waste_turns, mis_json, dur_s, turn_count, cost_usd in rows:
+    for (
+        waste_turns,
+        mis_json,
+        waste_breakdown,
+        dur_s,
+        turn_count,
+        tool_error_count,
+        cost_usd,
+    ) in rows:
         turn_duration_s = dur_s / turn_count if turn_count > 0 else 0
         session_waste_hours = (waste_turns * turn_duration_s) / 3600.0
 
@@ -2865,7 +2913,9 @@ def api_lost_hours():
                 pass
 
         if not cats_in_session:
-            cats_in_session = {"Other"}
+            cats_in_session = _fallback_waste_categories(
+                waste_breakdown, int(tool_error_count or 0), int(waste_turns or 0)
+            ) or {"Other"}
 
         per_cat_hours = session_waste_hours / len(cats_in_session)
         per_cat_cost = (cost_usd or 0) / len(cats_in_session)
