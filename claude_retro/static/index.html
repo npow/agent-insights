@@ -1415,7 +1415,15 @@ function reRenderChartsForTheme() {
 }
 
 // ===== HELPERS =====
-async function api(path) { const r = await fetch(path); return r.json(); }
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let err;
+    try { err = await r.json(); } catch { err = {error: `Service error (${r.status})`}; }
+    return err;
+  }
+  return r.json();
+}
 
 function fmtDuration(s) {
   if (!s) return '0m';
@@ -3867,6 +3875,7 @@ async function showRewritePrompt(sessionId, btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = '...'; }
   try {
     const r = await fetch(`/api/sessions/${sessionId}/rewrite-prompt`, {method:'POST'});
+    if (!r.ok) { content.innerHTML = `<div style="color:var(--red)">Service error (${r.status})</div>`; return; }
     const data = await r.json();
     if (data.error) { content.innerHTML = `<div style="color:var(--red)">${esc(data.error)}</div>`; return; }
     let html = `<h3 style="color:var(--accent);margin-bottom:12px">✏️ Rewritten Prompt</h3>`;
