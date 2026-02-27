@@ -1514,8 +1514,8 @@ function fmtOutcome(o) {
   return o.charAt(0).toUpperCase() + o.replaceAll('_', ' ').slice(1);
 }
 function outcomeBadge(o) { return o ? `<span class="badge badge-${o}">${fmtOutcome(o)}</span>` : ''; }
-function intentBadge(i) { return i ? `<span class="badge badge-${i}">${i}</span>` : ''; }
-function trajectoryBadge(t) { return t ? `<span class="badge badge-${t}">${t}</span>` : ''; }
+function intentBadge(i) { return (i && i !== 'unknown') ? `<span class="badge badge-${i}">${i}</span>` : ''; }
+function trajectoryBadge(t) { return (t && t !== 'unknown') ? `<span class="badge badge-${t}">${t}</span>` : ''; }
 
 function outcomeColor(outcome) {
   switch (outcome) {
