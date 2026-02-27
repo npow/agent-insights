@@ -173,7 +173,11 @@ h2 {{ font-size: 20px; margin: 30px 0 15px; color: #8b8fa3; }}
     for s in top_sessions:
         session_id = s[0]
         project = html.escape(s[1] or "")
-        date = s[2].strftime('%b %d, %Y') if s[2] else ""
+        from datetime import datetime as _dt
+        try:
+            date = _dt.fromisoformat(s[2]).strftime('%b %d, %Y') if s[2] else ""
+        except (ValueError, TypeError):
+            date = (s[2] or "")[:10]
         prompt = html.escape((s[3] or "")[:150] + "..." if s[3] and len(s[3]) > 150 else s[3] or "")
         outcome = html.escape(s[4] or "unknown")
         confidence = round((s[5] or 0) * 100, 0)
