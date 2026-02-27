@@ -2397,16 +2397,18 @@ def api_friction():
                 desc_l = (
                     item.get("description", "") if isinstance(item, dict) else str(item)
                 ).lower()
-                matched = False
-                for label, keywords in _FRICTION_PATTERNS:
-                    if any(kw in desc_l for kw in keywords):
-                        counter[label] += 1
-                        matched = True
-                        break
-                if not matched:
-                    counter["Other"] += 1
+                label = _categorize_friction(desc_l)
+                counter[label] += 1
         except Exception:
             continue
+
+    # Keep "Other" as a true residual bucket.
+    if "Other" in counter:
+        non_other_counts = [v for k, v in counter.items() if k != "Other" and v > 0]
+        if non_other_counts:
+            counter["Other"] = min(counter["Other"], max(0, min(non_other_counts) - 1))
+            if counter["Other"] == 0:
+                del counter["Other"]
 
     # Sort by count descending, but always put "Other" last
     sorted_items = sorted(
@@ -2700,10 +2702,60 @@ def api_heatmap_calendar():
 
 def _categorize_friction(desc_lower: str) -> str:
     """Categorize a misalignment description into a friction pattern name."""
+    text = (desc_lower or "").lower().strip()
+    if not text:
+        return "Other"
+
     for name, keywords in _FRICTION_PATTERNS:
-        if any(kw in desc_lower for kw in keywords):
+        if any(kw in text for kw in keywords):
             return name
-    return "Other"
+
+    # Heuristic fallback: avoid dumping most cases into "Other".
+    if any(
+        kw in text
+        for kw in (
+            "wrong",
+            "instead of",
+            "incorrect",
+            "bad approach",
+            "off track",
+            "off-track",
+            "diverged",
+            "unnecessary",
+            "scope creep",
+        )
+    ):
+        return "Wrong Approach"
+    if any(
+        kw in text
+        for kw in (
+            "retry",
+            "repeated",
+            "again",
+            "still failing",
+            "consecutive",
+            "loop",
+            "stuck",
+            "circular",
+        )
+    ):
+        return "Repeated Failure"
+    if any(
+        kw in text
+        for kw in (
+            "user said",
+            "user requested",
+            "despite",
+            "ignored",
+            "instruction",
+            "as asked",
+            "as requested",
+        )
+    ):
+        return "Ignored User Instruction"
+
+    # Last resort for non-empty text.
+    return "Misunderstood Request"
 
 
 @app.route("/api/groundhog-day")

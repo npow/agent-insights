@@ -1,6 +1,174 @@
-"""CLI entry point: app, serve, ingest, digest, reset."""
+"""CLI entry point: serve, ingest, digest, reset, setup."""
 
+from __future__ import annotations
+
+import os
+import plistlib
+import shutil
+import subprocess
 import sys
+from pathlib import Path
+
+from .port_select import choose_server_port
+
+LAUNCH_AGENT_LABEL = "com.claude-retro"
+LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_LABEL}.plist"
+
+
+def _parse_serve_flags(args: list[str]) -> tuple[int | None, bool]:
+    """Parse `serve` flags.
+
+    Supported:
+    - --port N
+    - --no-open
+    """
+    port_override = None
+    no_open = False
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--no-open":
+            no_open = True
+            i += 1
+            continue
+        if a == "--port":
+            if i + 1 >= len(args):
+                raise ValueError("--port requires a value")
+            try:
+                p = int(args[i + 1])
+            except ValueError as e:
+                raise ValueError("--port must be an integer") from e
+            if p < 1 or p > 65535:
+                raise ValueError("--port must be between 1 and 65535")
+            port_override = p
+            i += 2
+            continue
+        raise ValueError(f"Unknown serve flag: {a}")
+    return port_override, no_open
+
+
+def _retro_program_args(port: int) -> tuple[list[str], str | None]:
+    project_root = Path(__file__).resolve().parents[1]
+    uv_bin = shutil.which("uv")
+    if not uv_bin:
+        for candidate in (
+            Path.home() / ".local" / "bin" / "uv",
+            Path("/opt/homebrew/bin/uv"),
+            Path("/usr/local/bin/uv"),
+        ):
+            if candidate.exists():
+                uv_bin = str(candidate)
+                break
+    # Source checkout: use uv run with explicit project for reproducible env.
+    if uv_bin and (project_root / "pyproject.toml").exists():
+        return (
+            [
+                uv_bin,
+                "run",
+                "--project",
+                str(project_root),
+                "python",
+                "-m",
+                "claude_retro",
+                "serve",
+                "--no-open",
+                "--port",
+                str(port),
+            ],
+            str(project_root),
+        )
+    # Installed package fallback.
+    return (
+        [
+            sys.executable,
+            "-m",
+            "claude_retro",
+            "serve",
+            "--no-open",
+            "--port",
+            str(port),
+        ],
+        None,
+    )
+
+
+def _write_launch_agent(port: int, relay_port: int):
+    LAUNCH_AGENT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    log_dir = Path.home() / "Library" / "Logs"
+    program_args, working_dir = _retro_program_args(port)
+    plist_data = {
+        "Label": LAUNCH_AGENT_LABEL,
+        "ProgramArguments": program_args,
+        "RunAtLoad": True,
+        "KeepAlive": True,
+        "EnvironmentVariables": {
+            "CLAUDE_RETRO_PORT": str(port),
+            "ANTHROPIC_BASE_URL": f"http://127.0.0.1:{relay_port}",
+        },
+        "StandardOutPath": str(log_dir / "claude-retro.log"),
+        "StandardErrorPath": str(log_dir / "claude-retro.err.log"),
+    }
+    if working_dir:
+        plist_data["WorkingDirectory"] = working_dir
+    with LAUNCH_AGENT_PATH.open("wb") as f:
+        plistlib.dump(plist_data, f)
+
+
+def _run(cmd: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def _setup_services():
+    if sys.platform != "darwin":
+        raise RuntimeError("setup is currently supported on macOS only")
+    if shutil.which("launchctl") is None:
+        raise RuntimeError("launchctl not found")
+    if shutil.which("uv") is None:
+        raise RuntimeError("uv not found. Install uv first: https://docs.astral.sh/uv/")
+
+    relay_port = int(os.environ.get("CLAUDE_RETRO_RELAY_PORT", "18082"))
+    if relay_port < 1 or relay_port > 65535:
+        raise RuntimeError("CLAUDE_RETRO_RELAY_PORT must be between 1 and 65535")
+
+    # Ensure relay tool exists and install/restart its launchd service.
+    _run(["uv", "tool", "install", "--upgrade", "claude-relay"])
+    _run(
+        [
+            "claude-relay",
+            "service",
+            "install",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(relay_port),
+        ]
+    )
+    _run(["claude-relay", "service", "restart"])
+
+    # Resolve a stable, non-colliding port for Claude Retro.
+    env_port = os.environ.get("CLAUDE_RETRO_PORT", "").strip()
+    preferred = int(env_port) if env_port.isdigit() else None
+    port, preferred_port = choose_server_port(preferred)
+    _write_launch_agent(port, relay_port)
+
+    # Reload launchd job.
+    subprocess.run(
+        ["launchctl", "unload", str(LAUNCH_AGENT_PATH)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    _run(["launchctl", "load", str(LAUNCH_AGENT_PATH)])
+    _run(["launchctl", "start", LAUNCH_AGENT_LABEL])
+
+    print("Setup complete.")
+    print(f"  Claude Retro launch agent: {LAUNCH_AGENT_PATH}")
+    if preferred_port != port:
+        print(f"  Requested port {preferred_port} was busy; using {port}")
+    else:
+        print(f"  Claude Retro port: {port}")
+    print(f"  Relay port: {relay_port}")
+    print(f"  URL: http://localhost:{port}")
 
 
 def main():
@@ -67,16 +235,19 @@ def main():
 
         print("\nIngestion complete!")
 
-    elif command == "app":
-        from .app import launch
-
-        launch()
-
     elif command == "serve":
         import webbrowser
-        from .config import SERVER_PORT
         from .server import app, set_worker
         from .background import IngestionWorker
+
+        try:
+            port_override, no_open = _parse_serve_flags(args[1:])
+        except ValueError as e:
+            print(f"Error: {e}")
+            print("Usage: python -m claude_retro serve [--port N] [--no-open]")
+            sys.exit(1)
+
+        server_port, preferred = choose_server_port(port_override)
 
         # Check if DB is empty — worker will run pipeline immediately
         from .db import get_conn, get_writer
@@ -98,10 +269,26 @@ def main():
         set_worker(worker)
         worker.start()
 
-        url = f"http://localhost:{SERVER_PORT}"
+        url = f"http://localhost:{server_port}"
+        if preferred != server_port:
+            print(f"Port {preferred} is busy; using {server_port} instead.")
         print(f"Starting server on {url}")
-        webbrowser.open(url)
-        app.run(host="127.0.0.1", port=SERVER_PORT, debug=False, threaded=False)
+        if not no_open:
+            webbrowser.open(url)
+        app.run(host="127.0.0.1", port=server_port, debug=False, threaded=False)
+
+    elif command == "setup":
+        try:
+            _setup_services()
+        except subprocess.CalledProcessError as e:
+            msg = (e.stderr or e.stdout or "").strip()
+            if msg:
+                print(msg)
+            print(f"Setup failed while running: {' '.join(e.cmd)}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Setup failed: {e}")
+            sys.exit(1)
 
     elif command == "digest":
         from .digest import weekly_digest
@@ -118,7 +305,7 @@ def main():
             print("No database to reset.")
 
     else:
-        print("Usage: python -m claude_retro [app|ingest|serve|digest|reset]")
+        print("Usage: python -m claude_retro [serve|ingest|digest|reset|setup]")
         sys.exit(1)
 
 

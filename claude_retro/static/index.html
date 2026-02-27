@@ -4155,6 +4155,9 @@ e - Export HTML
 
 // Simple polling for background status (no SSE complexity)
 let lastSeenState = null;
+let lastProgressCount = null;
+let lastProgressTotal = null;
+let lastProgressTs = 0;
 
 async function updateBackgroundStatus(status) {
   const progressEl = document.getElementById('refresh-progress');
@@ -4170,7 +4173,24 @@ async function updateBackgroundStatus(status) {
     if (progressEl.style.display !== 'flex') {
       progressEl.style.display = 'flex';
     }
-    stepEl.textContent = status.step || 'Working...';
+    const baseStep = status.step || 'Working...';
+    const now = Date.now();
+    if (status.total > 0) {
+      if (status.current !== lastProgressCount || status.total !== lastProgressTotal) {
+        lastProgressCount = status.current;
+        lastProgressTotal = status.total;
+        lastProgressTs = now;
+      }
+      const stalledForMs = lastProgressTs ? (now - lastProgressTs) : 0;
+      if (status.state === 'judging' && stalledForMs > 20000) {
+        const secs = Math.round(stalledForMs / 1000);
+        stepEl.textContent = `${baseStep} — still processing current session (${secs}s)`;
+      } else {
+        stepEl.textContent = baseStep;
+      }
+    } else {
+      stepEl.textContent = baseStep;
+    }
     btn.disabled = true;
     btn.textContent = status.state === 'judging' ? 'Judging...' : 'Running...';
 
@@ -4208,6 +4228,9 @@ async function updateBackgroundStatus(status) {
         progressEl.style.display = 'none';
       }
     }
+    lastProgressCount = null;
+    lastProgressTotal = null;
+    lastProgressTs = 0;
   }
 
   lastSeenState = currentState;

@@ -6,15 +6,17 @@
 
 A sprint retro for your AI coding sessions. Reads your local Claude Code history, scores every session, and tells you what to change.
 
-## Download
-
-**[Download the latest release](https://github.com/npow/claude-retro/releases/latest)** (macOS .app)
-
-Or install from source:
+## Install
 
 ```bash
 pip install -e .
 claude-retro
+```
+
+For background startup on reboot (macOS), run:
+
+```bash
+claude-retro setup
 ```
 
 ## What it looks like
@@ -58,14 +60,14 @@ pip install -e .
 claude-retro
 ```
 
-Opens in your browser at `localhost:8420`. Sessions auto-refresh every 30 seconds. Hit "Run LLM Judge" to get AI analysis.
+Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy). Sessions auto-refresh every 30 seconds. Hit "Run LLM Judge" to get AI analysis.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
 | `claude-retro` | Start server + open browser (default) |
-| `claude-retro app` | Launch native desktop window |
+| `claude-retro setup` | Install/start launchd services for Claude Retro + claude-relay (macOS) |
 | `claude-retro ingest` | Run full pipeline including LLM judging |
 | `claude-retro digest` | Print a weekly summary to stdout |
 | `claude-retro reset` | Delete the database and start fresh |
@@ -75,7 +77,8 @@ Opens in your browser at `localhost:8420`. Sessions auto-refresh every 30 second
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CLAUDE_RETRO_DB` | `~/.claude/retro.duckdb` | Database path |
-| `CLAUDE_RETRO_PORT` | `8420` | Server port |
+| `CLAUDE_RETRO_PORT` | `8420` | Preferred server port (falls back if busy) |
+| `CLAUDE_RETRO_RELAY_PORT` | `18082` | Relay service port used by `claude-retro setup` |
 
 ## Requirements
 
@@ -104,7 +107,7 @@ Opens in your browser at `localhost:8420`. Sessions auto-refresh every 30 second
                                     +---------------------+
 
  +-------------------+
- |   Flask server    |<--- REST API ---> Browser / pywebview
- |  (port 8420)      |
+ |   Flask server    |<--- REST API ---> Browser
+ |  (auto port)      |
  +-------------------+
 ```

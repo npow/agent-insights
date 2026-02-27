@@ -4,25 +4,13 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-.PHONY: build install dev test clean icon help
-
-## Build the macOS .app bundle
-build:
-	@echo "Building Claude Retro.app..."
-	./build_macos.sh
-	@echo "Done! Output: dist/Claude Retro.app"
+.PHONY: install dev test clean help setup ingest digest reset
 
 ## Install from source (uses agenttrace from GitHub)
 install:
 	@echo "Installing claude-retro..."
 	pip install -e .
 	@echo "Done! Run with: claude-retro"
-
-## Install with build dependencies
-install-build:
-	@echo "Installing with build dependencies..."
-	pip install -e ".[build]"
-	@echo "Done!"
 
 ## Install using a local agenttrace checkout (for development)
 install-dev:
@@ -34,9 +22,9 @@ install-dev:
 dev:
 	python -m claude_retro
 
-## Run with app window
-app:
-	python -m claude_retro app
+## Setup launchd services (macOS)
+setup:
+	python -m claude_retro setup
 
 ## Run full pipeline (ingest + judge)
 ingest:
@@ -50,17 +38,13 @@ digest:
 reset:
 	python -m claude_retro reset
 
-## Generate app icon
-icon:
-	python create_icon.py
-
 ## Run tests
 test:
 	pytest tests/ -v
 
 ## Clean build artifacts
 clean:
-	rm -rf dist/ build/ *.spec
+	rm -rf dist/ build/
 	rm -rf claude_retro.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
