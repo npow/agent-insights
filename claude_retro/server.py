@@ -1623,7 +1623,16 @@ def api_sessions_by_friction():
             break
 
     if not patterns and friction_type != "Other":
-        return jsonify({"sessions": [], "error": "Unknown friction type"})
+        # Fall back to keyword matching using significant words from the title
+        stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
+                      "for", "of", "with", "by", "from", "is", "it", "this", "that",
+                      "when", "without", "before", "after", "not", "what", "how",
+                      "consuming", "first", "wrong", "asking", "building", "investigating"}
+        words = [w.lower().strip("(),") for w in friction_type.split()
+                 if len(w) > 3 and w.lower() not in stop_words]
+        patterns = words[:8]  # Use top 8 keywords
+        if not patterns:
+            return jsonify({"sessions": [], "error": "Unknown friction type"})
 
     # Fetch all sessions with misalignments, then filter in Python
     rows = conn.execute("""
@@ -2120,11 +2129,14 @@ def api_languages():
         LIMIT 50
     """).fetchall()
 
-    items = [
-        {"label": _LABEL_MAP.get(r[0], r[0].upper()), "count": r[1]}
-        for r in rows
-        if r[0] in _CODE_EXTS
-    ][:12]
+    # Merge rows that share the same display label (e.g. yaml + yml → YAML)
+    merged: dict[str, int] = {}
+    for r in rows:
+        if r[0] not in _CODE_EXTS:
+            continue
+        label = _LABEL_MAP.get(r[0], r[0].upper())
+        merged[label] = merged.get(label, 0) + r[1]
+    items = [{"label": k, "count": v} for k, v in sorted(merged.items(), key=lambda x: -x[1])][:12]
     return jsonify({"languages": items, "needs_reingest": len(items) == 0})
 
 

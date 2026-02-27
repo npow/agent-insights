@@ -927,7 +927,7 @@ tr:hover td { background: var(--surface2); }
 
 /* ===== SEARCH RESULTS ===== */
 .search-panel {
-  position: fixed; top: auto; right: 16px; width: min(520px, calc(100vw - 32px));
+  position: absolute; top: calc(100% + 4px); left: 0; width: min(520px, calc(100vw - 32px));
   max-height: 420px; overflow-y: auto; z-index: 200;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); box-shadow: var(--shadow-lg);
@@ -1138,7 +1138,7 @@ tr:hover td { background: var(--surface2); }
   </nav>
 
   <!-- WHAT CHANGED SINCE LAST RUN — delta banner -->
-  <div id="delta-banner" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:6px;background:color-mix(in srgb, var(--accent2) 8%, var(--card));border:1px solid color-mix(in srgb, var(--accent2) 25%, transparent);font-size:12px">
+  <div id="delta-banner" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:6px;background:color-mix(in srgb, var(--accent2) 8%, var(--surface));border:1px solid color-mix(in srgb, var(--accent2) 25%, transparent);font-size:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <span style="font-weight:600;color:var(--accent2);font-size:11px;letter-spacing:.05em;text-transform:uppercase">Since Last Run</span>
       <span id="delta-date" style="color:var(--text-dim);font-size:10px"></span>
@@ -1186,7 +1186,7 @@ tr:hover td { background: var(--surface2); }
 
   <!-- TAB BAR -->
   <div class="tab-bar">
-    <button class="tab-btn" data-tab="actions" onclick="switchTab('actions')">Actions <span id="actions-dot" style="display:none;width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;vertical-align:middle;margin-left:4px"></span></button>
+    <button class="tab-btn" data-tab="actions" onclick="switchTab('actions')">Actions <span id="actions-dot" style="display:none;width:6px;height:6px;border-radius:50%;background:var(--accent);vertical-align:middle;margin-left:4px"></span></button>
     <button class="tab-btn active" data-tab="sessions" onclick="switchTab('sessions')">Sessions</button>
     <button class="tab-btn" data-tab="charts" onclick="switchTab('charts')">Charts</button>
   </div>
@@ -1237,7 +1237,7 @@ tr:hover td { background: var(--surface2); }
     <div id="advisor-section">
       <div class="section-label" style="color:var(--accent)">Pre-Session Advisor</div>
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Paste your opening prompt to predict friction before you start.</div>
-      <textarea id="advisor-input" placeholder="Paste your opening prompt here to predict friction..." style="width:100%;box-sizing:border-box;background:var(--card-bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;font-family:inherit;resize:vertical;min-height:80px;margin-bottom:6px"></textarea>
+      <textarea id="advisor-input" placeholder="Paste your opening prompt here to predict friction..." style="width:100%;box-sizing:border-box;background:var(--inset);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;font-family:inherit;resize:vertical;min-height:80px;margin-bottom:6px"></textarea>
       <button onclick="analyzePrompt()" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:600">🔮 Analyze Friction Risk</button>
       <div id="advisor-result" style="margin-top:10px"></div>
     </div>
@@ -1274,8 +1274,8 @@ tr:hover td { background: var(--surface2); }
         <div class="section-label" style="color:var(--blue);margin-bottom:0">CLAUDE.md Suggestions</div>
         <div style="display:flex;align-items:center;gap:8px">
           <span id="claude-md-status" style="font-size:10px;color:var(--green);font-weight:500"></span>
-          <button id="audit-rules-btn" class="copy-btn" onclick="auditRules()" style="background:var(--card-bg)">🔍 Audit Rules</button>
-          <button id="copy-all-rules" class="copy-btn" onclick="copyAllRules()">Copy All</button>
+          <button id="audit-rules-btn" class="copy-btn" onclick="auditRules()" style="position:relative;top:auto;right:auto;background:var(--surface2)">🔍 Audit Rules</button>
+          <button id="copy-all-rules" class="copy-btn" onclick="copyAllRules()" style="position:relative;top:auto;right:auto">Copy All</button>
         </div>
       </div>
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px">Written to your project CLAUDE.md files after each judge run.</div>
@@ -1435,6 +1435,12 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '...' : (s || ''); }
+function cleanPrompt(s) {
+  if (!s) return '';
+  const m = s.match(/^```(\w*)/);
+  if (m) return m[1] ? `[${m[1]} input]` : '[code input]';
+  return s;
+}
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtGlance(text) {
   if (!text) return '<p></p>';
@@ -1494,7 +1500,12 @@ function renderMessage(text, maxLen) {
   return `<div class="msg-text">${rendered}</div>`;
 }
 
-function outcomeBadge(o) { return o ? `<span class="badge badge-${o}">${(o || '').replace('_', ' ')}</span>` : ''; }
+function fmtOutcome(o) {
+  if (!o) return '';
+  if (o === 'partially_completed') return 'Partial';
+  return o.charAt(0).toUpperCase() + o.replaceAll('_', ' ').slice(1);
+}
+function outcomeBadge(o) { return o ? `<span class="badge badge-${o}">${fmtOutcome(o)}</span>` : ''; }
 function intentBadge(i) { return i ? `<span class="badge badge-${i}">${i}</span>` : ''; }
 function trajectoryBadge(t) { return t ? `<span class="badge badge-${t}">${t}</span>` : ''; }
 
@@ -1531,8 +1542,7 @@ async function loadVerdict() {
 
   // Show "Fill Stories" button if sessions are missing narratives
   try {
-    const fillCheck = await api('/api/fill-narratives', { method: 'HEAD' }).catch(() => null);
-    // Just check DB directly via judgments stats
+    // Check DB directly via judgments stats
     const missingNarratives = jStats.total_judged > 0 ? Math.max(0, jStats.total_judged - (jStats.narrative_count || 0)) : 0;
     if (missingNarratives > 5) {
       const fnBtn = document.getElementById('fill-narratives-btn');
@@ -1719,7 +1729,7 @@ async function loadChangeCards() {
       cards.push({
         num: cards.length + 1,
         title: `Specify ${g.category} upfront`,
-        body: `${g.count} sessions had gaps in ${g.category}. Examples: ${g.examples.slice(0, 2).join(', ')}.`,
+        body: `${g.count} session${g.count !== 1 ? 's' : ''} had gaps in ${g.category}. Examples: ${g.examples.slice(0, 2).join(', ')}.`,
         link: `${(g.pct * 100).toFixed(0)}% of all prompt gaps`,
       });
     });
@@ -1787,7 +1797,7 @@ async function loadChangeCards() {
         </div>
         <div class="cc-metrics" style="--cols:${cols}">${metricsHtml}</div>
         ${shortAdvice ? `<div class="cc-advice"><div class="cc-advice-label">Fix</div>${shortAdvice}</div>` : ''}
-        <div class="cc-footer"><span class="cc-cta" onclick="filterByProject('${projName.replace(/'/g, "\\'")}')">View ${linkParts[linkParts.length-1]} sessions &rarr;</span></div>
+        <div class="cc-footer"><span class="cc-cta" onclick="filterByProject('${projName.replace(/'/g, "\\'")}')">View ${linkParts[linkParts.length-1]} session${parseInt(linkParts[linkParts.length-1]) !== 1 ? 's' : ''} &rarr;</span></div>
       </div>`;
     }
 
@@ -1916,7 +1926,7 @@ async function loadDelta() {
     // Sessions delta
     if (d.sessions_delta !== 0) {
       const sign = d.sessions_delta > 0 ? '+' : '';
-      parts.push({ label: `${sign}${d.sessions_delta} sessions`, color: d.sessions_delta > 0 ? 'var(--green)' : 'var(--text-dim)' });
+      parts.push({ label: `${sign}${d.sessions_delta} session${Math.abs(d.sessions_delta) !== 1 ? 's' : ''}`, color: d.sessions_delta > 0 ? 'var(--green)' : 'var(--text-dim)' });
     }
 
     // Productivity delta
@@ -1994,7 +2004,7 @@ async function openFrictionDrillthrough(frictionType) {
             <span style="font-size:10px;color:var(--text-dim)">${s.duration_min}m · ${s.turns} turns · ${Math.round(s.productivity*100)}% productive</span>
           </div>
           <div style="font-size:11px;color:var(--text);margin-bottom:6px">${s.prompt_summary || ''}</div>
-          ${s.narrative ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:6px;padding:6px 8px;background:var(--card-dim);border-radius:4px">${s.narrative.slice(0, 300)}${s.narrative.length > 300 ? '…' : ''}</div>` : ''}
+          ${s.narrative ? `<div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:6px;padding:6px 8px;background:var(--surface2);border-radius:4px">${s.narrative.slice(0, 300)}${s.narrative.length > 300 ? '…' : ''}</div>` : ''}
           <div style="margin-top:4px">${s.matching_frictions.map(f => `<div style="font-size:10px;color:var(--red);padding:2px 0;border-top:1px solid var(--border-muted);margin-top:3px">${f}</div>`).join('')}</div>
           <a href="#" onclick="event.preventDefault();closeFrictionModal();openSessionModal('${s.session_id}')" style="font-size:11px;color:var(--accent);text-decoration:none;display:inline-block;margin-top:6px">View full session →</a>
         </div>
@@ -2160,12 +2170,12 @@ async function loadHighlights() {
         <div class="hl-type" style="color:${color}">${h.label}${costHtml}</div>
         <h3>${title}</h3>
         ${preview ? `<div class="hl-narrative" id="hl-preview-${sid}">${preview}</div>` : ''}
-        ${hasFullNarrative ? `<div id="hl-full-${sid}" style="display:none;font-size:11px;color:var(--text-sec);line-height:1.6;margin-top:6px;padding:8px;background:var(--card-dim);border-radius:4px">${fullNarrative}
+        ${hasFullNarrative ? `<div id="hl-full-${sid}" style="display:none;font-size:11px;color:var(--text-sec);line-height:1.6;margin-top:6px;padding:8px;background:var(--surface2);border-radius:4px">${fullNarrative}
           ${h.user_quote ? `<blockquote style="margin:8px 0 0 0;padding:6px 8px;border-left:2px solid ${color};color:var(--text-dim);font-style:italic;font-size:11px">"${esc(h.user_quote)}"</blockquote>` : ''}
         </div>` : ''}
         ${h.what_worked ? `<div id="hl-worked-${sid}" style="display:none;font-size:11px;color:var(--green);margin-top:4px"><strong>✓ Worked:</strong> ${h.what_worked}</div>` : ''}
         ${h.what_failed ? `<div id="hl-failed-${sid}" style="display:none;font-size:11px;color:var(--red);margin-top:4px"><strong>✗ Failed:</strong> ${h.what_failed}</div>` : ''}
-        <div class="hl-meta">${short} &middot; ${fmtDuration(h.duration)} &middot; ${h.outcome || ''}</div>
+        <div class="hl-meta">${short} &middot; ${fmtDuration(h.duration)} &middot; ${fmtOutcome(h.outcome)}</div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
           ${hasFullNarrative ? `<span class="hl-link" id="hl-expand-${sid}" onclick="expandHighlight('${sid}')">Read story ↓</span>` : ''}
           <span class="hl-link" onclick="openSessionModal('${sid}')">Full session →</span>
@@ -2288,6 +2298,13 @@ async function loadSessions(append) {
   const data = await api('/api/sessions?' + params);
   const feed = document.getElementById('session-feed');
 
+  if (data.sessions.length === 0 && !append) {
+    const msg = search
+      ? `No sessions found for "${search}" — try the search dropdown for message-level matches`
+      : 'No sessions found';
+    feed.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-dim);font-size:13px">${msg}</div>`;
+  }
+
   data.sessions.forEach(s => {
     const card = document.createElement('div');
     card.className = 's-card';
@@ -2301,14 +2318,14 @@ async function loadSessions(append) {
       <div class="s-outcome" style="background:${dotColor}"></div>
       <div style="min-width:0;flex:1">
         <div class="s-row1">
-          <div class="s-prompt">${truncate(s.first_prompt, 80)}</div>
+          <div class="s-prompt">${truncate(cleanPrompt(s.first_prompt), 80)}</div>
         </div>
         <div class="s-row2">
           <span>${shortProject(s.project_name)}</span>
           <span class="sep">&middot;</span>
           <span>${fmtDuration(s.duration_seconds)}</span>
           <span class="sep">&middot;</span>
-          <span>${s.turn_count} msgs</span>
+          <span>${s.turn_count} turn${s.turn_count !== 1 ? 's' : ''}</span>
           ${s.tool_use_count > 0 ? `<span class="sep">&middot;</span><span>${s.tool_use_count} tools</span>` : ''}
           ${s.misalignment_count > 0 ? `<span class="sep">&middot;</span><span style="color:var(--red)">${s.misalignment_count} issue${s.misalignment_count > 1 ? 's' : ''}</span>` : ''}
         </div>
@@ -2367,11 +2384,17 @@ async function toggleSession(sessionId, cardEl) {
 
   // Fetch detail + rich timeline + skills
   const fetchStart = performance.now();
-  const [detail, timeline, skillsData] = await Promise.all([
-    api(`/api/sessions/${sessionId}`),
-    api(`/api/sessions/${sessionId}/rich-timeline`),
-    api(`/api/skills/session/${sessionId}`),
-  ]);
+  let detail, timeline, skillsData;
+  try {
+    [detail, timeline, skillsData] = await Promise.all([
+      api(`/api/sessions/${sessionId}`),
+      api(`/api/sessions/${sessionId}/rich-timeline`),
+      api(`/api/skills/session/${sessionId}`),
+    ]);
+  } catch (e) {
+    loadingDiv.innerHTML = `<div style="padding:16px;color:var(--text-dim);font-size:13px">Failed to load session detail. ${e.message || ''}</div>`;
+    return;
+  }
   console.log(`API fetch took ${(performance.now() - fetchStart).toFixed(0)}ms`);
 
   const s = detail.session;
@@ -2625,7 +2648,7 @@ async function toggleSession(sessionId, cardEl) {
     return true;
   });
 
-  const tlLabel = `${tlEntries.length} turns`;
+  const tlLabel = `${tlEntries.length} entries`;
   html += `<div class="ai-section">
     <div class="timeline-toggle" onclick="event.stopPropagation(); document.getElementById('${timelineId}').classList.toggle('open'); this.textContent = document.getElementById('${timelineId}').classList.contains('open') ? '\u25BE Hide timeline (${tlLabel})' : '\u25B8 Show timeline (${tlLabel})'">
       \u25B8 Show timeline (${tlLabel})
@@ -2739,7 +2762,7 @@ async function doFullTextSearch(q) {
         <div class="sr-role" style="background:${roleColor}">${roleChar}</div>
         <div class="sr-body">
           <div class="sr-snippet">${snippet}</div>
-          <div class="sr-meta">${short} &middot; ${fmtDate(r.started_at)} &middot; ${r.first_prompt ? truncate(r.first_prompt, 50) : ''}</div>
+          <div class="sr-meta">${short} &middot; ${fmtDate(r.started_at)} &middot; ${r.first_prompt ? truncate(cleanPrompt(r.first_prompt), 50) : ''}</div>
         </div>
       </div>`;
     }).join('');
@@ -2829,7 +2852,7 @@ function renderSessionTree() {
     sessions: (a, b) => b.session_count - a.session_count,
     productivity: (a, b) => (b.avg_productivity || 0) - (a.avg_productivity || 0),
     completion: (a, b) => (b.completion_rate || 0) - (a.completion_rate || 0),
-    name: (a, b) => a.project_name.localeCompare(b.project_name),
+    name: (a, b) => shortProject(a.project_name).localeCompare(shortProject(b.project_name)),
   };
   const sorted = [...projList].sort(sortFns[_treeSortKey] || sortFns.sessions);
 
@@ -2896,7 +2919,7 @@ async function loadProjectSessions(projectName) {
         <div class="s-row2">
           <span>${fmtDuration(s.duration_seconds)}</span>
           <span class="sep">&middot;</span>
-          <span>${s.turn_count} msgs</span>
+          <span>${s.turn_count} turn${s.turn_count !== 1 ? 's' : ''}</span>
           ${s.tool_use_count > 0 ? `<span class="sep">&middot;</span><span>${s.tool_use_count} tools</span>` : ''}
           ${s.misalignment_count > 0 ? `<span class="sep">&middot;</span><span style="color:var(--red)">${s.misalignment_count} issue${s.misalignment_count > 1 ? 's' : ''}</span>` : ''}
         </div>
@@ -3099,11 +3122,11 @@ async function showSession(sessionId) {
     const entries = timeline.timeline || [];
 
     let html = `<div class="modal-header">`;
-    html += `<h3>${s.first_prompt ? s.first_prompt.slice(0, 120) : sessionId}</h3>`;
+    html += `<h3>${s.first_prompt ? cleanPrompt(s.first_prompt).slice(0, 120) : sessionId}</h3>`;
     html += `<div class="modal-meta">`;
     html += `<span>${s.started_at ? new Date(s.started_at).toLocaleString() : ''}</span>`;
     html += `<span class="sep">&middot;</span>`;
-    html += `<span>${s.turn_count || 0} turns</span>`;
+    html += `<span>${s.turn_count || 0} turn${(s.turn_count || 0) !== 1 ? 's' : ''}</span>`;
     html += `<span class="sep">&middot;</span>`;
     html += `<span>${Math.round((s.duration_seconds || 0) / 60)}m</span>`;
     if (s.project_name) {
@@ -3115,7 +3138,7 @@ async function showSession(sessionId) {
     if (detail.judgment) {
       const j = detail.judgment;
       html += `<div class="modal-judgment">`;
-      html += `<strong>${j.outcome}</strong> &middot; ${(j.productivity_ratio * 100).toFixed(0)}% productive`;
+      html += `<strong>${fmtOutcome(j.outcome)}</strong> &middot; ${(j.productivity_ratio * 100).toFixed(0)}% productive`;
       if (j.trajectory_summary) html += `<div class="judge-summary">${j.trajectory_summary}</div>`;
       html += `</div>`;
     }
@@ -3142,8 +3165,11 @@ async function showSession(sessionId) {
         while (i < entries.length && (entries[i].entry_type === 'assistant' || (entries[i].entry_type === 'user' && entries[i].is_tool_result))) {
           const ae = entries[i];
           if (ae.tool_names) {
-            const t = typeof ae.tool_names === 'string' ? ae.tool_names.split(',') : ae.tool_names;
-            t.forEach(x => { const n = x.trim(); if (n && !tools.includes(n)) tools.push(n); });
+            let t;
+            try { t = JSON.parse(ae.tool_names); } catch { t = ae.tool_names.split(','); }
+            if (Array.isArray(t)) {
+              t.forEach(x => { const n = (x || '').trim(); if (n && !tools.includes(n)) tools.push(n); });
+            }
           }
           if (ae.tool_result_error) hasError = true;
           // Capture assistant text (reasoning before tool calls)
@@ -3170,6 +3196,8 @@ async function showSession(sessionId) {
     content.innerHTML = `<div style="color:var(--red)">Failed to load session: ${err.message}</div>`;
   }
 }
+
+const openSessionModal = showSession;
 
 function closeSessionModal() {
   document.getElementById('session-modal').classList.remove('active');
@@ -3246,7 +3274,7 @@ async function loadCharts() {
   if (barGrid) {
     const intents = (intentsData.intents || [])
       .filter(i => i.intent && i.intent !== 'unknown')
-      .map(i => ({ label: i.intent.replace(/_/g, ' '), value: i.count }))
+      .map(i => ({ label: i.intent.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), value: i.count }))
       .sort((a, b) => b.value - a.value).slice(0, 8);
 
     const tools = (toolsData.tools || [])
@@ -3257,7 +3285,7 @@ async function loadCharts() {
     const outcomeOrder = ['completed', 'mostly_completed', 'partially_completed', 'failed', 'exploratory', 'abandoned'];
     const outcomes = outcomeOrder
       .filter(k => od[k] > 0)
-      .map(k => ({ label: k.replace(/_/g, ' '), value: od[k] }))
+      .map(k => ({ label: fmtOutcome(k), value: od[k] }))
       .sort((a, b) => b.value - a.value);
 
     // Trajectory: skip if all values are 'unknown' (scoring not yet run)
@@ -3265,7 +3293,7 @@ async function loadCharts() {
     const trajOrder = ['converged', 'mixed', 'drifted', 'thrashed'];
     const trajectory = trajOrder
       .filter(k => td[k] > 0)
-      .map(k => ({ label: k, value: td[k] }))
+      .map(k => ({ label: k.charAt(0).toUpperCase() + k.slice(1), value: td[k] }))
       .sort((a, b) => b.value - a.value);
 
     barGrid.innerHTML = [
@@ -3303,7 +3331,7 @@ async function loadCharts() {
   // Multi-clauding stats card
   const mcSection = document.getElementById('multi-clauding-section');
   if (mcSection && mcData) {
-    mcSection.innerHTML = `<div class="chart-card">
+    mcSection.innerHTML = `<div class="chart-card" style="min-height:0">
       <h3>Multi-Clauding (Parallel Sessions)</h3>
       <div style="display:flex;gap:24px;flex-wrap:wrap;padding:4px 0">
         <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--accent)">${mcData.overlap_events.toLocaleString()}</div><div style="font-size:11px;color:var(--text-sec);margin-top:2px">5-min Overlap Windows</div></div>
@@ -3536,7 +3564,7 @@ function renderHeatmap(data) {
       const count = cell ? cell.count : 0;
       const intensity = count / maxCount;
       const bg = hmColor(count, maxCount);
-      html += `<div class="heatmap-cell" style="background:${bg}" title="${days[d]} ${h}:00 - ${count} sessions">${count || ''}</div>`;
+      html += `<div class="heatmap-cell" style="background:${bg}" title="${days[d]} ${h}:00 - ${count} session${count !== 1 ? 's' : ''}">${count || ''}</div>`;
     }
   }
   html += '</div>';
@@ -3633,13 +3661,14 @@ async function analyzePrompt() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({prompt})
     });
+    if (!r.ok) { result.innerHTML = `<div style="color:var(--red)">Analysis unavailable — service error (${r.status})</div>`; return; }
     const data = await r.json();
     if (data.error) { result.innerHTML = `<div style="color:var(--red)">${esc(data.error)}</div>`; return; }
     const riskColors = {low: 'var(--green)', medium: '#f97316', high: 'var(--red)'};
     const riskEmoji = {low: '✅', medium: '⚠️', high: '🔴'};
     const color = riskColors[data.risk_level] || 'var(--text-dim)';
     const emoji = riskEmoji[data.risk_level] || '❓';
-    let html = `<div style="border:1px solid ${color};border-radius:8px;padding:12px;background:var(--card-bg)">`;
+    let html = `<div style="border:1px solid ${color};border-radius:8px;padding:12px;background:var(--surface)">`;
     html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">`;
     html += `<span style="font-size:20px">${emoji}</span>`;
     html += `<span style="font-size:16px;font-weight:700;color:${color}">${esc(data.risk_level || '').toUpperCase()} RISK</span>`;
@@ -3661,7 +3690,7 @@ async function analyzePrompt() {
     html += `</div>`;
     result.innerHTML = html;
   } catch(e) {
-    result.innerHTML = `<div style="color:var(--red)">Error: ${esc(e.message)}</div>`;
+    result.innerHTML = `<div style="color:var(--red)">Analysis unavailable — could not reach service</div>`;
   }
 }
 
@@ -3674,7 +3703,7 @@ async function loadLostHours() {
     sec.style.display = 'block';
     const total = data.total_waste_hours.toFixed(1);
     const cost = data.total_cost_usd.toFixed(2);
-    let html = `<div style="background:var(--card-bg);border:1px solid #f97316;border-radius:8px;padding:12px;margin-bottom:8px">`;
+    let html = `<div style="background:var(--surface);border:1px solid #f97316;border-radius:8px;padding:12px;margin-bottom:8px">`;
     html += `<div style="font-size:20px;font-weight:700;color:#f97316">${total} hrs lost to friction</div>`;
     html += `<div style="font-size:12px;color:var(--text-dim)">~$${cost} in estimated token cost</div>`;
     html += `</div>`;
@@ -3686,7 +3715,7 @@ async function loadLostHours() {
         const hrs = cat.waste_hours.toFixed(1);
         html += `<div style="cursor:pointer" onclick="openFrictionDrillthrough('${esc(cat.category)}')">`;
         html += `<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">`;
-        html += `<span>${esc(cat.category)}</span><span style="color:#f97316;font-weight:600">${hrs}h (${cat.sessions} sessions)</span>`;
+        html += `<span>${esc(cat.category)}</span><span style="color:#f97316;font-weight:600">${hrs}h (${cat.sessions} ${cat.sessions === 1 ? 'session' : 'sessions'})</span>`;
         html += `</div>`;
         html += `<div style="height:6px;background:var(--border);border-radius:3px"><div style="height:100%;width:${pct}%;background:#f97316;border-radius:3px"></div></div>`;
         html += `</div>`;
@@ -3708,7 +3737,7 @@ async function loadGroundhogDay() {
     badge.textContent = data.loops.length + ' patterns';
     let html = '';
     for (const loop of data.loops.slice(0, 5)) {
-      html += `<div style="border:1px solid #f97316;border-radius:6px;padding:10px;margin-bottom:8px;background:var(--card-bg)">`;
+      html += `<div style="border:1px solid #f97316;border-radius:6px;padding:10px;margin-bottom:8px;background:var(--surface)">`;
       html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">`;
       html += `<div><strong style="color:#f97316">${esc(loop.pattern)}</strong> <span style="color:var(--text-dim);font-size:11px">in ${esc(loop.project)}</span></div>`;
       html += `<span style="background:#f97316;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700">${loop.count}x</span>`;
@@ -3814,7 +3843,7 @@ async function showHandoff(sessionId, btnEl) {
     }
     if (data.suggested_opening) {
       html += `<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:4px">🚀 SUGGESTED OPENING</div>`;
-      html += `<div style="background:var(--card-bg);border:1px solid var(--accent);border-radius:6px;padding:10px;font-size:12px;white-space:pre-wrap;margin-bottom:8px">${esc(data.suggested_opening)}</div>`;
+      html += `<div style="background:var(--inset);border:1px solid var(--accent);border-radius:6px;padding:10px;font-size:12px;white-space:pre-wrap;margin-bottom:8px">${esc(data.suggested_opening)}</div>`;
       html += `<button class="copy-btn" style="background:var(--accent);color:#fff" data-copy="${esc(data.suggested_opening)}" onclick="navigator.clipboard.writeText(this.dataset.copy).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='📋 Copy Opening Prompt',1500)})">📋 Copy Opening Prompt</button>`;
       html += `</div>`;
     }
@@ -3843,7 +3872,7 @@ async function showRewritePrompt(sessionId, btnEl) {
     let html = `<h3 style="color:var(--accent);margin-bottom:12px">✏️ Rewritten Prompt</h3>`;
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">`;
     html += `<div><div style="font-size:11px;font-weight:600;color:var(--text-dim);margin-bottom:4px">ORIGINAL</div>`;
-    html += `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;white-space:pre-wrap">${esc(data.original||'')}</div></div>`;
+    html += `<div style="background:var(--inset);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;white-space:pre-wrap">${esc(data.original||'')}</div></div>`;
     html += `<div><div style="font-size:11px;font-weight:600;color:var(--green);margin-bottom:4px">REWRITTEN</div>`;
     html += `<div style="background:rgba(34,197,94,0.05);border:1px solid var(--green);border-radius:6px;padding:8px;font-size:12px;white-space:pre-wrap">${esc(data.rewritten||'')}</div>`;
     if (data.rewritten) {
@@ -3877,7 +3906,7 @@ async function auditRules() {
     const r = await fetch('/api/claudemd-audit', {method:'POST'});
     const data = await r.json();
     if (data.error && !data.audit) {
-      alert('Audit error: ' + data.error);
+      if (btn) { btn.textContent = '⚠ Audit Error'; btn.title = data.error; }
       return;
     }
     const audit = data.audit || [];
@@ -3894,7 +3923,7 @@ async function auditRules() {
       for (const a of audit) {
         const color = statusColors[a.status] || 'var(--text-dim)';
         const emoji = statusEmoji[a.status] || '❓';
-        html += `<div style="border:1px solid ${color};border-radius:6px;padding:8px;margin-bottom:6px;background:var(--card-bg)">`;
+        html += `<div style="border:1px solid ${color};border-radius:6px;padding:8px;margin-bottom:6px;background:var(--surface)">`;
         html += `<div style="display:flex;justify-content:space-between;margin-bottom:4px">`;
         html += `<span style="font-size:12px;font-weight:600">${esc(a.rule_text||'').slice(0,80)}</span>`;
         html += `<span style="font-size:12px">${emoji} <span style="color:${color}">${esc(a.status)}</span></span>`;
@@ -3922,7 +3951,7 @@ async function auditRules() {
     }
     if (btn) btn.textContent = '✓ Audited';
   } catch(e) {
-    alert('Audit failed: ' + e.message);
+    if (btn) { btn.textContent = '⚠ Audit Error'; btn.title = e.message; }
   } finally {
     if (btn) { btn.disabled = false; if (btn.textContent === 'Auditing...') btn.textContent = '🔍 Audit Rules'; }
   }
@@ -4030,7 +4059,7 @@ async function loadVersionInfo() {
   try {
     const version = await api('/api/version');
     const el = document.getElementById('version-info');
-    el.textContent = `v${version.version} (${version.commit.substring(0, 7)})`;
+    el.textContent = `${version.version.replace(/^v?/, 'v')} (${version.commit.substring(0, 7)})`;
     el.title = `Build date: ${version.build_date}`;
   } catch (e) {
     console.error('Failed to load version info:', e);
@@ -4042,6 +4071,15 @@ document.addEventListener('keydown', (e) => {
   // Ignore if typing in input/textarea
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
     return;
+  }
+
+  // Escape - close any open modal
+  if (e.key === 'Escape') {
+    if (document.getElementById('session-modal').classList.contains('active')) { closeSessionModal(); return; }
+    if (document.getElementById('friction-modal').style.display !== 'none') { closeFrictionModal(); return; }
+    if (document.getElementById('rewrite-modal').style.display !== 'none') { closeRewriteModal(); return; }
+    if (document.getElementById('handoff-modal').style.display !== 'none') { closeHandoffModal(); return; }
+    if (searchPanel.classList.contains('open')) { searchPanel.classList.remove('open'); return; }
   }
 
   // r - Run LLM Judge
