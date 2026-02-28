@@ -6,10 +6,36 @@
 
 A sprint retro for your AI coding sessions. Reads your local Claude Code history, scores every session, and tells you what to change.
 
+## How is this different from Claude Code's built-in `/insights`?
+
+Claude Code's `/insights` is a weekly LLM-generated report: it reads your sessions, identifies friction patterns, surfaces impressive moments, and suggests CLAUDE.md additions and new workflows. It's genuinely useful.
+
+Claude Retro is a **persistent local server** you leave running alongside Claude Code. The key differences:
+
+| | Built-in `/insights` | Claude Retro |
+|---|---|---|
+| Delivery | One-time HTML report | Live web UI, auto-refreshes every 30s |
+| Cadence | Generated on demand (weekly snapshot) | Continuous — captures every session as it happens |
+| Token & cost tracking | ✓ | ✓ |
+| Response time distribution | ✓ | ✓ |
+| Multi-clauding detection | ✓ | ✓ |
+| Time-of-day analysis | ✓ | ✓ |
+| Friction & pattern analysis | ✓ (narrative) | ✓ (quantitative + narrative) |
+| Outcome tracking | ✓ | ✓ |
+| Prescriptions ("change X") | ✓ | ✓ |
+| CLAUDE.md suggestions | ✓ (copy-paste) | ✓ (generated per session, auto-applied) |
+| Lines / files changed | ✓ | — |
+| Per-session quality scores | — | ✓ convergence, drift, thrash |
+| Session-level browsing | — | ✓ filterable feed, click to expand AI analysis |
+| Historical trends | — | ✓ score charts over time |
+| Skill radar | — | ✓ 9-dimension skill profile |
+
+`/insights` is a great weekly snapshot. Claude Retro is a persistent dashboard that captures every session as it happens and goes further: per-session scores, a browsable session feed, trend charts, and CLAUDE.md rules that are written directly to your projects automatically.
+
 ## Install
 
 ```bash
-pip install -e .
+pip install claude-retro
 claude-retro
 ```
 
@@ -56,7 +82,7 @@ All analysis runs locally against `~/.claude/projects/`. Nothing leaves your mac
 ## Quick start
 
 ```bash
-pip install -e .
+pip install claude-retro
 claude-retro
 ```
 
@@ -76,7 +102,7 @@ Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CLAUDE_RETRO_DB` | `~/.claude/retro.duckdb` | Database path |
+| `CLAUDE_RETRO_DB` | `~/.claude/retro.sqlite` | Database path |
 | `CLAUDE_RETRO_PORT` | `8420` | Preferred server port (falls back if busy) |
 | `CLAUDE_RETRO_RELAY_PORT` | `18082` | Relay service port used by `claude-retro setup` |
 
@@ -88,7 +114,7 @@ Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy
 ## Architecture
 
 ```
-~/.claude/projects/**/*.jsonl          ~/.claude/retro.duckdb
+~/.claude/projects/**/*.jsonl          ~/.claude/retro.sqlite
          |                                      ^
          v                                      |
  +-----------------+    every 30s    +----------+----------+
