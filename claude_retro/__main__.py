@@ -136,13 +136,18 @@ def main():
         from .server import app, set_worker
         from .background import IngestionWorker
 
-        # Start claude-relay for LLM judging (unless user has their own LLM setup)
-        if not os.environ.get("ANTHROPIC_BASE_URL"):
+        # Start claude-relay for LLM judging.
+        # Skip only if the user explicitly pointed us at a non-local LLM endpoint
+        # (i.e. ANTHROPIC_BASE_URL is set AND is not localhost/127.0.0.1).
+        _existing_url = os.environ.get("ANTHROPIC_BASE_URL", "")
+        _user_supplied_remote = _existing_url and "localhost" not in _existing_url and "127.0.0.1" not in _existing_url
+        if not _user_supplied_remote:
             relay_port = int(os.environ.get("CLAUDE_RETRO_RELAY_PORT", 8082))
             print("Checking LLM relay...")
             _ensure_relay(port=relay_port)
-            # Point the LLM judge at the relay we just started
-            os.environ.setdefault("ANTHROPIC_BASE_URL", f"http://localhost:{relay_port}")
+            # Always point the LLM judge at our local relay
+            os.environ["ANTHROPIC_BASE_URL"] = f"http://localhost:{relay_port}"
+            os.environ.setdefault("ANTHROPIC_API_KEY", "unused")
 
         # Check if DB is empty — worker will run pipeline immediately
         from .db import get_conn, get_writer

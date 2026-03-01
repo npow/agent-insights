@@ -1,6 +1,6 @@
 [project]
 name = "claude-retro"
-version = "1.2.2"
+version = "1.2.3"
 description = "Sprint retro for your Claude Code sessions"
 license = "MIT"
 requires-python = ">=3.11"
@@ -16,3 +16,6 @@ claude-retro = "claude_retro.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["claude_retro*"]
+
+[tool.setuptools.package-data]
+claude_retro = ["static/*"]
