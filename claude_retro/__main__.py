@@ -69,7 +69,7 @@ def main():
 
     elif command == "serve":
         import webbrowser
-        from .config import SERVER_PORT
+        from .port_select import choose_server_port
         from .server import app, set_worker
         from .background import IngestionWorker
 
@@ -93,6 +93,7 @@ def main():
         set_worker(worker)
         worker.start()
 
+        SERVER_PORT, _ = choose_server_port()
         url = f"http://localhost:{SERVER_PORT}"
         print(f"Starting server on {url}")
         webbrowser.open(url)

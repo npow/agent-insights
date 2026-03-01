@@ -1,9 +1,9 @@
 [project]
 name = "claude-retro"
-version = "1.1.0"
+version = "1.1.1"
 description = "Sprint retro for your Claude Code sessions"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "anthropic>=0.40.0",
     "flask>=2.0.0",
