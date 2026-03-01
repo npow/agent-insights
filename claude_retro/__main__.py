@@ -69,6 +69,9 @@ def _ensure_relay(port: int = 8082) -> bool:
 def main():
     args = sys.argv[1:]
     command = args[0] if args else "serve"
+    from .telemetry import init_sentry
+
+    init_sentry(component="cli", command=command, enable_flask=(command == "serve"))
 
     if command == "ingest":
         from .ingest import run_ingest

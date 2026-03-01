@@ -11,6 +11,7 @@ from .config import CLAUDE_PROJECTS_DIR
 from .db import get_conn, get_writer
 from .version import get_version_info
 from .export import generate_export_html
+from .telemetry import init_sentry
 
 if getattr(sys, "frozen", False):
     _static = str(Path(sys._MEIPASS) / "static")
@@ -18,6 +19,7 @@ else:
     _static = str(Path(__file__).parent / "static")
 
 app = Flask(__name__, static_folder=_static)
+init_sentry(component="server", command="serve", enable_flask=True)
 
 # Ensure schema exists at import time so the app works even when started
 # via `flask run` rather than `python -m claude_retro`.
