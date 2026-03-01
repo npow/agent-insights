@@ -1,6 +1,6 @@
 [project]
 name = "claude-retro"
-version = "1.2.1"
+version = "1.2.2"
 description = "Sprint retro for your Claude Code sessions"
 license = "MIT"
 requires-python = ">=3.11"
