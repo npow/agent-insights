@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Claude Retro</title>
+<title>Agent Insights</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1108,7 +1108,10 @@ tr:hover td { background: var(--surface2); }
       <span id="refresh-step"></span>
       <span id="refresh-count" style="color:var(--accent);font-weight:500"></span>
     </div>
-    <div style="display:flex;align-items:center;gap:2px;margin-left:auto">
+    <select id="global-agent-filter" style="height:26px;padding:0 8px;background:var(--inset);border:1px solid var(--border-muted);border-radius:4px;color:var(--text-sec);font-size:11px;outline:none;cursor:pointer;transition:border-color 0.15s;margin-left:auto" title="Filter by agent">
+      <option value="">All agents</option>
+    </select>
+    <div style="display:flex;align-items:center;gap:2px">
       <button id="theme-toggle" onclick="toggleTheme()" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:var(--text-dim);font-size:14px;transition:background 0.12s,color 0.12s;line-height:1" title="Toggle theme"></button>
       <select id="concurrency-select" style="height:26px;padding:0 8px;background:var(--inset);border:1px solid var(--border-muted);border-radius:4px;color:var(--text-sec);font-size:11px;outline:none;cursor:pointer;transition:border-color 0.15s" title="Parallelism">
         <option value="4">4x</option>
@@ -1217,6 +1220,9 @@ tr:hover td { background: var(--surface2); }
           <option value="productivity">Productivity ↓</option>
           <option value="completion">Completion ↓</option>
           <option value="name">Name A–Z</option>
+        </select>
+        <select id="filter-agent">
+          <option value="">All agents</option>
         </select>
         <div style="position:relative">
           <input type="text" id="filter-search" placeholder="Search all sessions..." style="min-width:220px" autocomplete="off">
@@ -1338,7 +1344,7 @@ tr:hover td { background: var(--surface2); }
 
   <!-- Footer -->
   <div class="footer">
-    Claude Retro <span id="version-info">loading...</span>
+    Agent Insights <span id="version-info">loading...</span>
   </div>
 
 </div>
@@ -1382,10 +1388,18 @@ let sessionOffset = 0;
 const PAGE_SIZE = 30;
 let allSessionsLoaded = false;
 let expandedSessionId = null;
+let _activeAgent = '';
+
+// ===== AGENT FILTER HELPER =====
+function agentParam(path) {
+  if (!_activeAgent) return path;
+  const sep = path.includes('?') ? '&' : '?';
+  return path + sep + 'agent_type=' + encodeURIComponent(_activeAgent);
+}
 
 // ===== THEME =====
 function getPreferredTheme() {
-  const stored = localStorage.getItem('claude-retro-theme');
+  const stored = localStorage.getItem('agent-insights-theme');
   if (stored) return stored;
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
@@ -1403,7 +1417,7 @@ function applyTheme(theme) {
 function toggleTheme() {
   const current = document.documentElement.hasAttribute('data-theme') ? 'light' : 'dark';
   const next = current === 'dark' ? 'light' : 'dark';
-  localStorage.setItem('claude-retro-theme', next);
+  localStorage.setItem('agent-insights-theme', next);
   applyTheme(next);
   // Re-render charts with new theme colors
   reRenderChartsForTheme();
@@ -1546,9 +1560,20 @@ function prodColor(v) {
 
 
 // ===== 1. THE VERDICT =====
+async function loadAgentTypes() {
+  try {
+    const data = await api('/api/agent-types');
+    const types = (data.agent_types || []).map(t => t.agent_type);
+    const label = t => t.charAt(0).toUpperCase() + t.slice(1);
+    const opts = types.map(t => `<option value="${t}">${label(t)}</option>`).join('');
+    document.getElementById('global-agent-filter').innerHTML = `<option value="">All agents</option>${opts}`;
+    document.getElementById('filter-agent').innerHTML = `<option value="">All agents</option>${opts}`;
+  } catch {}
+}
+
 async function loadVerdict() {
   const [overview, jStats, patterns] = await Promise.all([
-    api('/api/overview'), api('/api/judgments/stats'), api('/api/patterns')
+    api(agentParam('/api/overview')), api(agentParam('/api/judgments/stats')), api(agentParam('/api/patterns'))
   ]);
 
   const el = document.getElementById('verdict');
@@ -1720,7 +1745,7 @@ function parseProjectMetrics(diagnosis) {
 // ===== 2. CHANGE THESE 3 THINGS =====
 async function loadChangeCards() {
   const [prescriptions, patterns, actions] = await Promise.all([
-    api('/api/prescriptions'), api('/api/patterns'), api('/api/actions')
+    api('/api/prescriptions'), api(agentParam('/api/patterns')), api('/api/actions')
   ]);
 
   const section = document.getElementById('changes-section');
@@ -1831,6 +1856,16 @@ async function loadChangeCards() {
 
 // ===== NARRATIVE SECTIONS =====
 async function loadSynthesis() {
+  // Synthesis is a global pre-computed summary — hide all synthesis sections when an agent filter is active
+  if (_activeAgent) {
+    for (const id of ['at-a-glance', 'wins-friction-row', 'usage-narrative-section',
+                      'claude-md-section', 'fun-headline', 'workflow-prompts-section',
+                      'features-section', 'delta-banner']) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    }
+    return;
+  }
   try {
     const data = await api('/api/synthesis');
     const s = data.synthesis;
@@ -2147,9 +2182,12 @@ async function loadFrictionCategories() {
 
 async function loadHighlights() {
   try {
-    const data = await api('/api/session-highlights');
+    const data = await api(agentParam('/api/session-highlights'));
     const highlights = data.highlights;
-    if (!highlights || highlights.length === 0) return;
+    if (!highlights || highlights.length === 0) {
+      document.getElementById('highlights-container').innerHTML = '';
+      return;
+    }
 
     const TYPE_COLORS = {
       most_productive: 'var(--green)',
@@ -2305,10 +2343,13 @@ async function loadSessions(append) {
   const project = document.getElementById('filter-project').value;
   const search = document.getElementById('filter-search').value;
   const sort = document.getElementById('filter-sort').value;
+  // Global agent filter takes precedence; tab-level filter-agent used only when no global is set
+  const agentType = _activeAgent || document.getElementById('filter-agent').value;
 
   const params = new URLSearchParams({ limit: PAGE_SIZE, offset: sessionOffset, sort });
   if (project) params.set('project', project);
   if (search) params.set('search', search);
+  if (agentType) params.set('agent_type', agentType);
 
   const data = await api('/api/sessions?' + params);
   const feed = document.getElementById('session-feed');
@@ -2343,6 +2384,7 @@ async function loadSessions(append) {
           <span>${s.turn_count} turn${s.turn_count !== 1 ? 's' : ''}</span>
           ${s.tool_use_count > 0 ? `<span class="sep">&middot;</span><span>${s.tool_use_count} tools</span>` : ''}
           ${s.misalignment_count > 0 ? `<span class="sep">&middot;</span><span style="color:var(--red)">${s.misalignment_count} issue${s.misalignment_count > 1 ? 's' : ''}</span>` : ''}
+          ${s.agent_type && s.agent_type !== 'unknown' && s.agent_type !== 'claude' ? `<span class="sep">&middot;</span><span style="color:var(--accent);font-weight:500">${s.agent_type}</span>` : ''}
         </div>
       </div>
       ${prod != null ? `<div class="s-prod" style="background:${prodColor(prod)};color:white">${fmtPct(prod)}</div>` : ''}`;
@@ -2710,6 +2752,46 @@ async function toggleSession(sessionId, cardEl) {
     loadSessions(false);
   });
 });
+document.getElementById('filter-agent').addEventListener('change', () => {
+  expandedSessionId = null;
+  // Sync tab-level filter to global filter
+  _activeAgent = document.getElementById('filter-agent').value;
+  document.getElementById('global-agent-filter').value = _activeAgent;
+  if (_activeAgent) {
+    document.getElementById('session-tree').style.display = 'none';
+    document.getElementById('session-feed-wrap').style.display = 'block';
+  } else {
+    showTreeView();
+  }
+  reloadAll();
+});
+
+// Global agent filter — reloads all dashboard sections
+document.getElementById('global-agent-filter').addEventListener('change', () => {
+  _activeAgent = document.getElementById('global-agent-filter').value;
+  // Sync tab-level filter-agent to match
+  document.getElementById('filter-agent').value = _activeAgent;
+  expandedSessionId = null;
+  if (_activeAgent) {
+    document.getElementById('session-tree').style.display = 'none';
+    document.getElementById('session-feed-wrap').style.display = 'block';
+  } else {
+    showTreeView();
+  }
+  reloadAll();
+});
+
+function reloadAll() {
+  loadVerdict();
+  loadChangeCards();
+  loadSynthesis();
+  loadHighlights();
+  loadLostHours();
+  loadGroundhogDay();
+  loadFrictionMap();
+  loadSessions(false);
+  if (_chartsLoaded) loadCharts();
+}
 let searchTimeout;
 const searchInput = document.getElementById('filter-search');
 const searchPanel = document.getElementById('search-panel');
@@ -2937,6 +3019,7 @@ async function loadProjectSessions(projectName) {
           <span>${s.turn_count} turn${s.turn_count !== 1 ? 's' : ''}</span>
           ${s.tool_use_count > 0 ? `<span class="sep">&middot;</span><span>${s.tool_use_count} tools</span>` : ''}
           ${s.misalignment_count > 0 ? `<span class="sep">&middot;</span><span style="color:var(--red)">${s.misalignment_count} issue${s.misalignment_count > 1 ? 's' : ''}</span>` : ''}
+          ${s.agent_type && s.agent_type !== 'unknown' && s.agent_type !== 'claude' ? `<span class="sep">&middot;</span><span style="color:var(--accent);font-weight:500">${s.agent_type}</span>` : ''}
         </div>
       </div>
       ${prod != null ? `<div class="s-prod" style="background:${prodColor(prod)};color:white">${fmtPct(prod)}</div>` : ''}`;
@@ -3264,11 +3347,11 @@ async function loadCharts() {
          todData, rtData, mcData, frictionData, toolErrData, langData, bashData] = await Promise.all([
     api('/api/heatmap'),
     api('/api/heatmap/calendar'),
-    api('/api/sessions?limit=50&sort=started_at+DESC'),
+    api(agentParam('/api/sessions?limit=50&sort=started_at+DESC')),
     api('/api/intents'),
     api('/api/tools'),
-    api('/api/judgments/stats'),
-    api('/api/overview'),
+    api(agentParam('/api/judgments/stats')),
+    api(agentParam('/api/overview')),
     api('/api/time-of-day'),
     api('/api/response-times'),
     api('/api/multi-clauding'),
@@ -4028,10 +4111,21 @@ async function init() {
     status = await api('/api/status');
   }
 
-  // Worker is ready, now load the UI data
-  countEl.textContent = ''; // Clear count - no meaningful progress here
+  // If the pipeline errored, show it prominently and keep the bar visible
+  if (status.last_error) {
+    barEl.style.width = '100%';
+    barEl.style.background = 'var(--red)';
+    stepEl.innerHTML = `<span style="color:var(--red)">Pipeline error: ${esc(status.last_error)}</span> — <a href="/api/diagnose" target="_blank" style="color:var(--accent);text-decoration:underline">diagnose</a>`;
+    countEl.textContent = '';
+    // Fall through and load whatever data is available
+  }
 
-  stepEl.textContent = 'Loading verdict...';
+  // Worker is ready, now load the UI data
+  countEl.textContent = '';
+
+  await loadAgentTypes();
+
+  if (!status.last_error) stepEl.textContent = 'Loading verdict...';
   barEl.style.width = '70%';
   await loadVerdict();
 

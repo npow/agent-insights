@@ -27,7 +27,7 @@ def _release() -> str | None:
     if override:
         return override
     try:
-        return version("claude-retro")
+        return version("agent-insights")
     except PackageNotFoundError:
         return None
 

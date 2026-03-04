@@ -1,6 +1,6 @@
-# Claude Retro
+# Agent Insights
 
-[![CI](https://github.com/npow/claude-retro/actions/workflows/ci.yml/badge.svg)](https://github.com/npow/claude-retro/actions/workflows/ci.yml)
+[![CI](https://github.com/npow/agent-insights/actions/workflows/ci.yml/badge.svg)](https://github.com/npow/agent-insights/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -10,9 +10,9 @@ A sprint retro for your AI coding sessions. Reads your local Claude Code history
 
 Claude Code's `/insights` is a weekly LLM-generated report: it reads your sessions, identifies friction patterns, surfaces impressive moments, and suggests CLAUDE.md additions and new workflows. It's genuinely useful.
 
-Claude Retro is a **persistent local server** you leave running alongside Claude Code. The key differences:
+Agent Insights is a **persistent local server** you leave running alongside Claude Code. The key differences:
 
-| | Built-in `/insights` | Claude Retro |
+| | Built-in `/insights` | Agent Insights |
 |---|---|---|
 | Delivery | One-time HTML report | Live web UI, auto-refreshes every 30s |
 | Cadence | Generated on demand (weekly snapshot) | Continuous — captures every session as it happens |
@@ -30,19 +30,19 @@ Claude Retro is a **persistent local server** you leave running alongside Claude
 | Historical trends | — | ✓ score charts over time |
 | Skill radar | — | ✓ 9-dimension skill profile |
 
-`/insights` is a great weekly snapshot. Claude Retro is a persistent dashboard that captures every session as it happens and goes further: per-session scores, a browsable session feed, trend charts, and CLAUDE.md rules that are written directly to your projects automatically.
+`/insights` is a great weekly snapshot. Agent Insights is a persistent dashboard that captures every session as it happens and goes further: per-session scores, a browsable session feed, trend charts, and CLAUDE.md rules that are written directly to your projects automatically.
 
 ## Install
 
 ```bash
-pip install claude-retro
-claude-retro
+pip install agent-insights
+agent-insights
 ```
 
 For background startup on reboot (macOS), run:
 
 ```bash
-claude-retro setup
+agent-insights setup
 ```
 
 ## What it looks like
@@ -50,22 +50,22 @@ claude-retro setup
 ### The Verdict
 See your overall performance at a glance — completion rate, productivity bar, top issues.
 
-![Verdict](https://github.com/npow/claude-retro/blob/main/screenshots/verdict.png?raw=true)
+![Verdict](https://github.com/npow/agent-insights/blob/main/screenshots/verdict.png?raw=true)
 
 ### Change These 3 Things
 Concrete, actionable advice based on your actual session data.
 
-![Change Cards](https://github.com/npow/claude-retro/blob/main/screenshots/changes.png?raw=true)
+![Change Cards](https://github.com/npow/agent-insights/blob/main/screenshots/changes.png?raw=true)
 
 ### Session Feed
 Every session with outcome, productivity, and inline misalignment callouts. Click to expand full AI analysis with conversation context.
 
-![Sessions](https://github.com/npow/claude-retro/blob/main/screenshots/sessions.png?raw=true)
+![Sessions](https://github.com/npow/agent-insights/blob/main/screenshots/sessions.png?raw=true)
 
 ### Charts & Project Health
 Outcome distribution, score trends, baselines, activity heatmap, and per-project health table.
 
-![Charts](https://github.com/npow/claude-retro/blob/main/screenshots/charts.png?raw=true)
+![Charts](https://github.com/npow/agent-insights/blob/main/screenshots/charts.png?raw=true)
 
 ## What you get
 
@@ -79,13 +79,13 @@ Outcome distribution, score trends, baselines, activity heatmap, and per-project
 
 All analysis runs locally against `~/.claude/projects/`. Nothing leaves your machine except the LLM judging calls (which use your own `claude` CLI).
 
-Multi-agent note: when `sessionlog` ingests Codex/Cursor/Antigravity sources, Claude Retro now preserves `agent_type` on sessions and exposes it in APIs (`/api/sessions`, `/api/projects`, `/api/live`, `/api/agent-types`).
+Multi-agent note: when `sessionlog` ingests Codex/Cursor/Antigravity sources, Agent Insights now preserves `agent_type` on sessions and exposes it in APIs (`/api/sessions`, `/api/projects`, `/api/live`, `/api/agent-types`).
 
 ## Quick start
 
 ```bash
-pip install claude-retro
-claude-retro
+pip install agent-insights
+agent-insights
 ```
 
 Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy). Sessions auto-refresh every 30 seconds. Hit "Run LLM Judge" to get AI analysis.
@@ -94,19 +94,19 @@ Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy
 
 | Command | Description |
 |---------|-------------|
-| `claude-retro` | Start server + open browser (default) |
-| `claude-retro setup` | Install/start launchd services for Claude Retro + claude-relay (macOS) |
-| `claude-retro ingest` | Run full pipeline including LLM judging |
-| `claude-retro digest` | Print a weekly summary to stdout |
-| `claude-retro reset` | Delete the database and start fresh |
+| `agent-insights` | Start server + open browser (default) |
+| `agent-insights setup` | Install/start launchd services for Agent Insights + claude-relay (macOS) |
+| `agent-insights ingest` | Run full pipeline including LLM judging |
+| `agent-insights digest` | Print a weekly summary to stdout |
+| `agent-insights reset` | Delete the database and start fresh |
 
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CLAUDE_RETRO_DB` | `~/.claude/retro.sqlite` | Database path |
-| `CLAUDE_RETRO_PORT` | `8420` | Preferred server port (falls back if busy) |
-| `CLAUDE_RETRO_RELAY_PORT` | `8082` | Port for the auto-started `claude-relay` |
+| `AGENT_INSIGHTS_DB` | `~/.claude/retro.sqlite` | Database path |
+| `AGENT_INSIGHTS_PORT` | `8420` | Preferred server port (falls back if busy) |
+| `AGENT_INSIGHTS_RELAY_PORT` | `8082` | Port for the auto-started `claude-relay` |
 | `ANTHROPIC_BASE_URL` | *(auto)* | Override LLM endpoint (e.g. `https://api.anthropic.com`) |
 | `ANTHROPIC_API_KEY` | `unused` | API key (only needed when using the real Anthropic API) |
 | `SENTRY_DSN` | *(unset)* | Enable Sentry error reporting when set |

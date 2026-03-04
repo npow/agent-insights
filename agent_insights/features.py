@@ -196,7 +196,7 @@ def _extract_session_features(session_id: str, conn):
     # Get session info
     session_info = conn.execute(
         """
-        SELECT started_at, tool_use_count FROM sessions WHERE session_id = ?
+        SELECT started_at, tool_use_count, agent_type FROM sessions WHERE session_id = ?
     """,
         [session_id],
     ).fetchone()
@@ -236,8 +236,16 @@ def _extract_session_features(session_id: str, conn):
     response_length_trend = _linear_trend([float(x) for x in response_lengths])
     response_length_cv = _coefficient_of_variation([float(x) for x in response_lengths])
 
-    # Token totals
-    total_input = sum(r[1] for r in assistant_rows)
+    # Token totals.
+    # For agents that report cumulative context tokens per call (e.g. OpenAI/Codex),
+    # summing all entries would massively overcount. Use the peak (MAX) input token
+    # value instead, which represents the unique context consumed across the session.
+    agent_type = session_info[2] if session_info else None
+    _cumulative_token_agents = {"codex"}
+    if agent_type in _cumulative_token_agents:
+        total_input = max((r[1] for r in assistant_rows), default=0)
+    else:
+        total_input = sum(r[1] for r in assistant_rows)
     total_output = sum(r[2] for r in assistant_rows)
 
     # Tool ratios

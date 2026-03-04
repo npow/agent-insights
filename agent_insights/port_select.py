@@ -8,7 +8,7 @@ from pathlib import Path
 
 DEFAULT_SERVER_PORT = 8420
 PORT_SCAN_LIMIT = 100
-PORT_STATE_PATH = Path.home() / ".claude" / "retro-port"
+PORT_STATE_PATH = Path.home() / ".claude" / "agent-insights-port"
 
 
 def _is_port_available(port: int) -> bool:
@@ -48,7 +48,7 @@ def choose_server_port(preferred_port: int | None = None) -> tuple[int, int]:
 
     Returns (chosen_port, preferred_port).
     Preference order:
-    1) CLAUDE_RETRO_PORT env var (if set)
+    1) AGENT_INSIGHTS_PORT env var (if set)
     2) Previously persisted port
     3) DEFAULT_SERVER_PORT
 
@@ -56,7 +56,7 @@ def choose_server_port(preferred_port: int | None = None) -> tuple[int, int]:
     """
     preferred: int | None = preferred_port
     if preferred is None:
-        env_port = os.environ.get("CLAUDE_RETRO_PORT", "").strip()
+        env_port = os.environ.get("AGENT_INSIGHTS_PORT", "").strip()
         if env_port:
             try:
                 candidate = int(env_port)

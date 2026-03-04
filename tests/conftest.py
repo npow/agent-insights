@@ -3,8 +3,8 @@
 import json
 import pytest
 
-import claude_retro.config as _cr_cfg
-from claude_retro import db
+import agent_insights.config as _cr_cfg
+from agent_insights import db
 
 # sessionlog internals (db.py / config.py) are only present in the editable
 # install from the git repo, not in the published PyPI wheel.  Guard so tests
@@ -25,8 +25,8 @@ def isolated_db(monkeypatch, tmp_path):
     """Redirect all DB access to a temp file for test isolation."""
     test_db = tmp_path / "test.sqlite"
 
-    # Set env var so both sessionlog.config and claude_retro.config use the test DB.
-    monkeypatch.setenv("CLAUDE_RETRO_DB", str(test_db))
+    # Set env var so both sessionlog.config and agent_insights.config use the test DB.
+    monkeypatch.setenv("AGENT_INSIGHTS_DB", str(test_db))
 
     # Patch DB_PATH everywhere it is referenced.
     monkeypatch.setattr(_cr_cfg, "DB_PATH", test_db)
@@ -43,8 +43,8 @@ def isolated_db(monkeypatch, tmp_path):
     if _HAS_AGENTTRACE_INTERNALS:
         _at_db._writer_conn = None
 
-    # Reset claude_retro.db extra-schema flag so it re-runs on new connection.
-    import claude_retro.db as _cr_db
+    # Reset agent_insights.db extra-schema flag so it re-runs on new connection.
+    import agent_insights.db as _cr_db
 
     _cr_db._extra_initialized = False
 

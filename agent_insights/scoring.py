@@ -82,7 +82,7 @@ def compute_scores():
             d_branch = _clamp(branch_switches / 3)
             d_sidechain = _clamp(sidechain_ratio / 0.3)
             d_no_decisions = _clamp(1.0 - decisions / max(prompt_count, 1) / 0.3)
-            d_long = _clamp((duration - 1800) / 3600) if duration > 1800 else 0.0
+            d_long = _clamp((duration - 1800) / 3600) if (duration or 0) > 1800 else 0.0
 
             w = DRIFT_WEIGHTS
             drift = (

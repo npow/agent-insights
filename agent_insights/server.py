@@ -22,7 +22,7 @@ app = Flask(__name__, static_folder=_static)
 init_sentry(component="server", command="serve", enable_flask=True)
 
 # Ensure schema exists at import time so the app works even when started
-# via `flask run` rather than `python -m claude_retro`.
+# via `flask run` rather than `python -m agent_insights`.
 get_writer()
 
 # Set by app.py / __main__.py so /api/status can read worker state
@@ -32,6 +32,47 @@ _worker = None
 def set_worker(worker):
     global _worker
     _worker = worker
+
+
+# Per-agent pricing: (input $/MTok, output $/MTok)
+_AGENT_PRICING: dict[str, tuple[float, float]] = {
+    "claude":      (3.0,  15.0),   # Sonnet 3.5/3.7
+    "codex":       (1.1,   4.4),   # OpenAI o3-mini (conservative estimate)
+    "cursor":      (3.0,  15.0),   # Cursor uses Claude models
+    "windsurf":    (3.0,  15.0),   # Windsurf Cascade (Sonnet-class)
+    "antigravity": (3.0,  15.0),
+}
+_DEFAULT_PRICING = (3.0, 15.0)
+
+
+def _estimated_cost(conn, session_filter: str, params: list) -> float:
+    """Compute estimated cost using per-agent pricing."""
+    rows = conn.execute(f"""
+        SELECT s.agent_type,
+               COALESCE(SUM(f.total_input_tokens), 0),
+               COALESCE(SUM(f.total_output_tokens), 0)
+        FROM sessions s
+        LEFT JOIN session_features f ON s.session_id = f.session_id
+        {session_filter}
+        GROUP BY s.agent_type
+    """, params).fetchall()
+    total = 0.0
+    for agent_type, inp, out in rows:
+        price_in, price_out = _AGENT_PRICING.get(agent_type or "", _DEFAULT_PRICING)
+        total += inp / 1_000_000 * price_in + out / 1_000_000 * price_out
+    return total
+
+
+def _agent_where(alias: str = "") -> tuple[str, list]:
+    """Return (extra_AND_clause, params) for the agent_type query param.
+
+    Pass alias='s' if the sessions table is aliased.
+    """
+    agent_type = request.args.get("agent_type", "").strip()
+    if not agent_type:
+        return "", []
+    col = f"{alias}.agent_type" if alias else "agent_type"
+    return f"AND COALESCE({col}, 'unknown') = ?", [agent_type]
 
 
 # Priority-ordered patterns; first match wins, minimising "Other"
@@ -495,7 +536,7 @@ def api_diagnose():
 
     # LLM relay reachability
     base_url = os.environ.get("ANTHROPIC_BASE_URL", _DEFAULT_BASE_URL)
-    model = os.environ.get("CLAUDE_RETRO_MODEL", _DEFAULT_MODEL)
+    model = os.environ.get("AGENT_INSIGHTS_MODEL", _DEFAULT_MODEL)
     diag["llm_base_url"] = base_url
     diag["llm_model"] = model
     try:
@@ -511,8 +552,8 @@ def api_diagnose():
 
     # DB counts
     try:
-        diag["sessions_total"] = conn.execute("SELECT COUNT(*) FROM sessions WHERE turn_count >= 1").fetchone()[0]
-        diag["sessions_judged"] = conn.execute("SELECT COUNT(*) FROM session_judgments j JOIN sessions s ON j.session_id = s.session_id WHERE s.turn_count >= 1").fetchone()[0]
+        diag["sessions_total"] = conn.execute("SELECT COUNT(*) FROM sessions WHERE (turn_count >= 1 OR agent_type != 'claude')").fetchone()[0]
+        diag["sessions_judged"] = conn.execute("SELECT COUNT(*) FROM session_judgments j JOIN sessions s ON j.session_id = s.session_id WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')").fetchone()[0]
         diag["sessions_unjudged"] = diag["sessions_total"] - diag["sessions_judged"]
         diag["sessions_without_narrative"] = conn.execute(
             "SELECT COUNT(*) FROM session_judgments WHERE narrative IS NULL OR narrative = ''"
@@ -545,7 +586,7 @@ def api_export():
     from datetime import datetime
 
     html = generate_export_html()
-    filename = f"claude-retro-{datetime.now().strftime('%Y%m%d')}.html"
+    filename = f"agent-insights-{datetime.now().strftime('%Y%m%d')}.html"
 
     return Response(
         html,
@@ -557,10 +598,12 @@ def api_export():
 @app.route("/api/overview")
 def api_overview():
     conn = get_conn()
+    agent_clause, agent_params = _agent_where()
 
-    _filter = """
-        WHERE turn_count >= 1
+    _filter = f"""
+        WHERE (turn_count >= 1 OR agent_type != 'claude')
           AND first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+          {agent_clause}
     """
 
     stats = conn.execute(f"""
@@ -581,7 +624,7 @@ def api_overview():
         FROM sessions s
         LEFT JOIN session_features f ON s.session_id = f.session_id
         {_filter}
-    """).fetchone()
+    """, agent_params).fetchone()
 
     # Median and p90 of messages per session
     msg_counts = conn.execute(f"""
@@ -589,7 +632,7 @@ def api_overview():
         FROM sessions
         {_filter}
         ORDER BY msgs
-    """).fetchall()
+    """, agent_params).fetchall()
     msg_list = [r[0] for r in msg_counts if r[0] is not None]
     if msg_list:
         median_msgs = msg_list[len(msg_list) // 2]
@@ -606,7 +649,7 @@ def api_overview():
         GROUP BY project_name
         ORDER BY cnt DESC
         LIMIT 1
-    """).fetchone()
+    """, agent_params).fetchone()
 
     trajectory_dist = conn.execute(f"""
         SELECT trajectory, COUNT(*) as count
@@ -614,7 +657,7 @@ def api_overview():
         {_filter}
         GROUP BY trajectory
         ORDER BY count DESC
-    """).fetchall()
+    """, agent_params).fetchall()
 
     cursor = conn.execute("""
         SELECT * FROM baselines ORDER BY window_size
@@ -648,12 +691,8 @@ def api_overview():
             "total_tool_calls": int(stats[10] or 0),
             "total_input_tokens": int(stats[11] or 0),
             "total_output_tokens": int(stats[12] or 0),
-            # Estimated cost: Sonnet 3.5/3.7 pricing ($3/MTok in, $15/MTok out)
-            "estimated_cost_usd": round(
-                (stats[11] or 0) / 1_000_000 * 3.0
-                + (stats[12] or 0) / 1_000_000 * 15.0,
-                2,
-            ),
+            # Estimated cost using per-agent pricing
+            "estimated_cost_usd": round(_estimated_cost(conn, _filter, agent_params), 2),
         }
     )
 
@@ -688,7 +727,7 @@ def api_sessions():
     )
 
     conditions = [
-        "s.turn_count >= 1",
+        "(s.turn_count >= 1 OR s.agent_type != 'claude')",
         "s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'",
     ]
     params = []
@@ -940,13 +979,59 @@ def api_session_rich_timeline(session_id):
 
     project_name, sess_agent_type = row[0], row[1]
     if sess_agent_type != "claude":
-        return jsonify(
-            {
-                "error": f"Rich timeline JSONL replay currently supports Claude sessions only (got agent_type={sess_agent_type})",
-                "timeline": [],
-            }
-        ), 400
-    jsonl_path = CLAUDE_PROJECTS_DIR / project_name / f"{session_id}.jsonl"
+        # For non-Claude agents, serve timeline from DB entries instead of JSONL
+        entries = conn.execute(
+            """
+            SELECT entry_id, entry_type, timestamp_utc, system_subtype,
+                   user_text, text_content, tool_names, tool_file_paths,
+                   is_tool_result, tool_result_error, duration_ms,
+                   input_tokens, output_tokens, model
+            FROM raw_entries
+            WHERE session_id = ? AND NOT is_sidechain
+            ORDER BY timestamp_utc
+            """,
+            [session_id],
+        ).fetchall()
+        timeline = []
+        for e in entries:
+            (eid, etype, ts, subtype, user_text, text_content, tool_names_raw,
+             tool_fps_raw, is_tr, tr_err, dur, inp_tok, out_tok, model) = e
+            try:
+                tool_names = json.loads(tool_names_raw) if tool_names_raw else []
+            except (json.JSONDecodeError, TypeError):
+                tool_names = []
+            try:
+                tool_fps = json.loads(tool_fps_raw) if tool_fps_raw else []
+            except (json.JSONDecodeError, TypeError):
+                tool_fps = []
+            text = user_text or text_content or ""
+            # Build tools array in the same shape the frontend expects from rich-timeline
+            tools = []
+            for i, tname in enumerate(tool_names):
+                fp = tool_fps[i] if i < len(tool_fps) else ""
+                tools.append({
+                    "name": tname,
+                    "input_preview": fp or "",
+                    "id": f"{eid}-t{i}",
+                })
+            timeline.append({
+                "entry_id": eid,
+                "type": etype,
+                "timestamp": ts,
+                "subtype": subtype,
+                "text": text[:2000] if text else "",
+                "tools": tools,
+                "is_tool_result": bool(is_tr),
+                "tool_result_error": bool(tr_err),
+                "duration_ms": dur or 0,
+                "input_tokens": inp_tok or 0,
+                "output_tokens": out_tok or 0,
+                "model": model,
+            })
+        return jsonify({"timeline": timeline})
+    # project_name may be prefixed as "claude:<dir>" — strip prefix to get actual directory
+    proj_dir = project_name.split(":", 1)[1] if ":" in project_name else project_name
+    jsonl_path = CLAUDE_PROJECTS_DIR / proj_dir / f"{session_id}.jsonl"
 
     if not jsonl_path.exists():
         return jsonify({"error": "JSONL not found", "timeline": []}), 404
@@ -1278,7 +1363,7 @@ def api_projects():
         FROM sessions s
         LEFT JOIN session_features f ON s.session_id = f.session_id
         LEFT JOIN session_judgments j ON s.session_id = j.session_id
-        WHERE s.turn_count >= 1
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
           AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%%'
           {agent_filter}
         GROUP BY s.project_name
@@ -1316,7 +1401,7 @@ def api_agent_types():
         """
         SELECT COALESCE(agent_type, 'unknown') AS agent_type, COUNT(*) AS session_count
         FROM sessions
-        WHERE turn_count >= 1
+        WHERE (turn_count >= 1 OR agent_type != 'claude')
           AND first_prompt NOT LIKE 'You are analyzing a Claude Code session%%'
         GROUP BY COALESCE(agent_type, 'unknown')
         ORDER BY session_count DESC
@@ -1375,7 +1460,7 @@ def api_fill_narratives():
     missing = conn.execute("""
         SELECT COUNT(*) FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
-        WHERE (j.narrative IS NULL OR j.narrative = '') AND s.turn_count >= 1
+        WHERE (j.narrative IS NULL OR j.narrative = '') AND (s.turn_count >= 1 OR s.agent_type != 'claude')
     """).fetchone()[0]
     if missing == 0:
         return jsonify(
@@ -1390,16 +1475,18 @@ def api_fill_narratives():
 @app.route("/api/judgments/stats")
 def api_judgment_stats():
     conn = get_conn()
+    agent_clause, agent_params = _agent_where("s")
 
     # Only count judgments for meaningful sessions (same filter as overview/session list)
-    _jfilter = """
+    _jfilter = f"""
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
-        WHERE s.turn_count >= 1
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
           AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+          {agent_clause}
     """
 
-    total = conn.execute(f"SELECT COUNT(*) {_jfilter}").fetchone()[0]
+    total = conn.execute(f"SELECT COUNT(*) {_jfilter}", agent_params).fetchone()[0]
     if total == 0:
         return jsonify({"total_judged": 0})
 
@@ -1407,7 +1494,7 @@ def api_judgment_stats():
         SELECT j.outcome, COUNT(*) as count
         {_jfilter}
         GROUP BY j.outcome ORDER BY count DESC
-    """).fetchall()
+    """, agent_params).fetchall()
 
     avgs = conn.execute(f"""
         SELECT
@@ -1418,7 +1505,7 @@ def api_judgment_stats():
             SUM(CASE WHEN j.misalignment_count > 0 THEN 1 ELSE 0 END) as sessions_with_misalignment,
             SUM(CASE WHEN j.narrative IS NOT NULL AND j.narrative != '' THEN 1 ELSE 0 END) as narrative_count
         {_jfilter}
-    """).fetchone()
+    """, agent_params).fetchone()
 
     return jsonify(
         {
@@ -1437,12 +1524,20 @@ def api_judgment_stats():
 @app.route("/api/patterns")
 def api_patterns():
     conn = get_conn()
+    agent_clause, agent_params = _agent_where("s")
+    _j_filter = f"""
+        JOIN sessions s ON j.session_id = s.session_id
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
+          AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+          {agent_clause}
+    """
 
     # --- Prompt gap clustering ---
-    gap_rows = conn.execute("""
-        SELECT prompt_missing FROM session_judgments
-        WHERE prompt_missing IS NOT NULL AND prompt_missing != '[]'
-    """).fetchall()
+    gap_rows = conn.execute(f"""
+        SELECT j.prompt_missing FROM session_judgments j
+        {_j_filter}
+        AND j.prompt_missing IS NOT NULL AND j.prompt_missing != '[]'
+    """, agent_params).fetchall()
 
     GAP_CATEGORIES = {
         "context": [
@@ -1537,10 +1632,11 @@ def api_patterns():
     )
 
     # --- Misalignment theme clustering ---
-    mis_rows = conn.execute("""
-        SELECT misalignments FROM session_judgments
-        WHERE misalignments IS NOT NULL AND misalignments != '[]'
-    """).fetchall()
+    mis_rows = conn.execute(f"""
+        SELECT j.misalignments FROM session_judgments j
+        {_j_filter}
+        AND j.misalignments IS NOT NULL AND j.misalignments != '[]'
+    """, agent_params).fetchall()
 
     THEME_KEYWORDS = {
         "tool_overuse": ["tool", "unnecessary", "redundant", "excessive", "repeated"],
@@ -1618,7 +1714,7 @@ def api_patterns():
     correlations = []
 
     # Prompt length vs productivity
-    prompt_bins = conn.execute("""
+    prompt_bins = conn.execute(f"""
         SELECT
             CASE
                 WHEN LENGTH(s.first_prompt) < 100 THEN 'short (<100 chars)'
@@ -1629,10 +1725,11 @@ def api_patterns():
             COUNT(*) as n
         FROM sessions s
         JOIN session_judgments j ON s.session_id = j.session_id
+        WHERE 1=1 {agent_clause}
         GROUP BY bin
         HAVING n >= 3
         ORDER BY avg_prod DESC
-    """).fetchall()
+    """, agent_params).fetchall()
     if len(prompt_bins) >= 2:
         parts = [
             f"{b[0]}: {b[1]:.0%} productivity ({b[2]} sessions)" for b in prompt_bins
@@ -1646,7 +1743,7 @@ def api_patterns():
         )
 
     # Corrections vs completion
-    corr_bins = conn.execute("""
+    corr_bins = conn.execute(f"""
         SELECT
             CASE WHEN f.correction_count = 0 THEN 'zero corrections' ELSE 'has corrections' END as bin,
             SUM(CASE WHEN j.outcome = 'completed' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as completion_pct,
@@ -1655,9 +1752,10 @@ def api_patterns():
         FROM sessions s
         JOIN session_features f ON s.session_id = f.session_id
         JOIN session_judgments j ON s.session_id = j.session_id
+        WHERE 1=1 {agent_clause}
         GROUP BY bin
         HAVING n >= 3
-    """).fetchall()
+    """, agent_params).fetchall()
     if len(corr_bins) >= 2:
         parts = [
             f"{b[0]}: {b[1]:.0f}% completion rate, {b[2]:.0%} productivity ({b[3]} sessions)"
@@ -1672,7 +1770,7 @@ def api_patterns():
         )
 
     # Unique tools vs productivity
-    tool_bins = conn.execute("""
+    tool_bins = conn.execute(f"""
         SELECT
             CASE WHEN f.unique_tools_used < 5 THEN 'focused (<5 tools)' ELSE 'broad (5+ tools)' END as bin,
             AVG(j.productivity_ratio) as avg_prod,
@@ -1680,9 +1778,10 @@ def api_patterns():
         FROM sessions s
         JOIN session_features f ON s.session_id = f.session_id
         JOIN session_judgments j ON s.session_id = j.session_id
+        WHERE 1=1 {agent_clause}
         GROUP BY bin
         HAVING n >= 3
-    """).fetchall()
+    """, agent_params).fetchall()
     if len(tool_bins) >= 2:
         parts = [
             f"{b[0]}: {b[1]:.0%} productivity ({b[2]} sessions)" for b in tool_bins
@@ -1696,15 +1795,15 @@ def api_patterns():
         )
 
     # --- Worst sessions ---
-    worst = conn.execute("""
+    worst = conn.execute(f"""
         SELECT j.session_id, j.misalignment_count, j.outcome,
                SUBSTR(s.first_prompt, 1, 120) as prompt_preview
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
-        WHERE j.misalignment_count > 0
+        WHERE j.misalignment_count > 0 {agent_clause}
         ORDER BY j.misalignment_count DESC
         LIMIT 5
-    """).fetchall()
+    """, agent_params).fetchall()
 
     worst_sessions = [
         {
@@ -1857,7 +1956,7 @@ def api_skill_dimensions_detail():
             JOIN sessions s ON sk.session_id = s.session_id
             LEFT JOIN session_judgments j ON sk.session_id = j.session_id
             WHERE (sk.{level_col} >= 2 OR sk.{opp_col} > sk.{level_col})
-              AND s.turn_count >= 1
+              AND (s.turn_count >= 1 OR s.agent_type != 'claude')
               AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
             ORDER BY sk.{level_col} DESC, s.started_at DESC
             LIMIT 5
@@ -1948,7 +2047,7 @@ def api_synthesis_delta():
                AVG(misalignment_count) as mis
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
-        WHERE s.turn_count >= 1
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
     """).fetchone()
     cur_sessions = cur[0] or 0
     cur_prod = cur[1] or 0.0
@@ -1977,18 +2076,23 @@ def api_synthesis_delta():
     conn.execute("""
         SELECT COUNT(*), AVG(misalignment_count)
         FROM session_judgments j JOIN sessions s ON j.session_id = s.session_id
-        WHERE s.turn_count >= 1
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
     """).fetchone()
 
     prod_delta = cur_prod - prev_prod
     sessions_delta = cur_sessions - prev_sessions
     mis_delta = cur_mis - (prev_friction.get("avg_per_session") or cur_mis)
 
-    # Skill level changes
-    skill_rows = conn.execute(
-        "SELECT dimension_id, current_level FROM skill_profile"
-    ).fetchall()
-    cur_skills = {r[0]: r[1] for r in skill_rows}
+    # Skill level changes — skill_profile is a single row with d1_score..d10_score
+    cur_skills = {}
+    _skill_row = conn.execute("SELECT * FROM skill_profile WHERE id = 1").fetchone()
+    if _skill_row:
+        _cursor = conn.execute("SELECT * FROM skill_profile WHERE id = 1")
+        _cols = [d[0] for d in _cursor.description]
+        _p = dict(zip(_cols, _skill_row))
+        for _i in range(1, 11):
+            _score = _p.get(f"d{_i}_score", 0) or 0
+            cur_skills[f"D{_i}"] = int(_score)
     prev_skills = {}
     prev_synth = conn.execute("""
         SELECT skill_levels FROM synthesis_history ORDER BY id DESC LIMIT 1
@@ -2088,7 +2192,7 @@ def api_sessions_by_friction():
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
         WHERE j.misalignments IS NOT NULL AND j.misalignments != '[]'
-          AND s.turn_count >= 1
+          AND (s.turn_count >= 1 OR s.agent_type != 'claude')
         ORDER BY j.misalignment_count DESC
         LIMIT 200
     """).fetchall()
@@ -2237,11 +2341,13 @@ def api_claude_md_suggestions():
 def api_session_highlights():
     """Return top noteworthy sessions with their narratives."""
     conn = get_conn()
+    agent_clause, agent_params = _agent_where("s")
 
-    _filter = """
+    _filter = f"""
         JOIN sessions s ON j.session_id = s.session_id
-        WHERE s.turn_count >= 1
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
           AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
+          {agent_clause}
     """
 
     highlights = []
@@ -2254,7 +2360,7 @@ def api_session_highlights():
         FROM session_judgments j {_filter}
           AND j.outcome = 'completed'
         ORDER BY j.productivity_ratio DESC LIMIT 1
-    """).fetchone()
+    """, agent_params).fetchone()
     if row:
         highlights.append(
             {
@@ -2280,7 +2386,7 @@ def api_session_highlights():
         FROM session_judgments j {_filter}
           AND j.waste_turns > 0
         ORDER BY j.waste_turns DESC LIMIT 1
-    """).fetchone()
+    """, agent_params).fetchone()
     if row:
         highlights.append(
             {
@@ -2307,7 +2413,7 @@ def api_session_highlights():
         FROM session_judgments j {_filter}
           AND j.misalignment_count > 0
         ORDER BY j.misalignment_count DESC LIMIT 1
-    """).fetchone()
+    """, agent_params).fetchone()
     if row and (not highlights or row[0] != highlights[-1].get("session_id")):
         highlights.append(
             {
@@ -2334,7 +2440,7 @@ def api_session_highlights():
           AND j.prompt_clarity >= 0.8 AND j.prompt_completeness >= 0.8
           AND j.outcome = 'completed'
         ORDER BY (j.prompt_clarity + j.prompt_completeness) DESC LIMIT 1
-    """).fetchone()
+    """, agent_params).fetchone()
     if row:
         highlights.append(
             {
@@ -2360,7 +2466,7 @@ def api_session_highlights():
         FROM session_judgments j {_filter}
           AND j.outcome = 'completed'
         ORDER BY s.duration_seconds DESC LIMIT 1
-    """).fetchone()
+    """, agent_params).fetchone()
     if row and (not highlights or row[0] != highlights[0].get("session_id")):
         highlights.append(
             {
@@ -2823,7 +2929,7 @@ def api_heatmap_calendar():
             DATE(started_at) as day,
             COUNT(*) as count
         FROM sessions
-        WHERE turn_count >= 1
+        WHERE (turn_count >= 1 OR agent_type != 'claude')
           AND first_prompt NOT LIKE 'You are analyzing a Claude Code session%%'
           AND started_at >= DATE('now', '-365 days')
         GROUP BY DATE(started_at)
@@ -3100,7 +3206,7 @@ def api_streaks():
         SELECT j.session_id, j.misalignments, s.started_at
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
-        WHERE s.turn_count >= 1
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
           AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
         ORDER BY s.started_at
     """).fetchall()
@@ -3198,7 +3304,7 @@ def api_friction_pattern_map():
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
         WHERE j.misalignments IS NOT NULL AND j.misalignments != '[]'
-          AND s.turn_count >= 1
+          AND (s.turn_count >= 1 OR s.agent_type != 'claude')
           AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
     """).fetchall()
 
@@ -3275,7 +3381,7 @@ def api_claudemd_effectiveness():
         SELECT s.started_at, j.misalignment_count, j.misalignments
         FROM session_judgments j
         JOIN sessions s ON j.session_id = s.session_id
-        WHERE s.turn_count >= 1
+        WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')
           AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%'
         ORDER BY s.started_at
     """).fetchall()

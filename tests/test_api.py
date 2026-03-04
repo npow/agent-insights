@@ -1,11 +1,11 @@
 """Tests for API endpoints — catches the data consistency bugs we've hit."""
 
 import pytest
-from claude_retro.server import app
-from claude_retro.sessions import build_sessions, build_tool_usage
-from claude_retro.features import extract_features
-from claude_retro.scoring import compute_scores
-from claude_retro.intents import classify_all_intents
+from agent_insights.server import app
+from agent_insights.sessions import build_sessions, build_tool_usage
+from agent_insights.features import extract_features
+from agent_insights.scoring import compute_scores
+from agent_insights.intents import classify_all_intents
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 """Tests for session building — the most bug-prone area."""
 
 import pytest
-from claude_retro.sessions import build_sessions, build_tool_usage
+from agent_insights.sessions import build_sessions, build_tool_usage
 
 
 class TestBuildSessions:

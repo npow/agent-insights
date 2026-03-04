@@ -1,7 +1,7 @@
 """Tests for LLM judge — turn counting and validation logic."""
 
-from claude_retro.sessions import build_sessions
-from claude_retro.llm_judge import build_session_summary, _build_record
+from agent_insights.sessions import build_sessions
+from agent_insights.llm_judge import build_session_summary, _build_record
 
 
 class TestBuildSessionSummary:
@@ -69,7 +69,7 @@ class TestBuildRecord:
                 "_raw": "",
             }
 
-        with mock.patch("claude_retro.llm_judge.analyze_combined", mock_combined):
+        with mock.patch("agent_insights.llm_judge.analyze_combined", mock_combined):
             record = _build_record("test-session", "fake summary", turn_count=10)
 
         # Should NOT be 100% productive with 5 misalignments
@@ -106,7 +106,7 @@ class TestBuildRecord:
                 "_raw": "",
             }
 
-        with mock.patch("claude_retro.llm_judge.analyze_combined", mock_combined):
+        with mock.patch("agent_insights.llm_judge.analyze_combined", mock_combined):
             record = _build_record("test-session", "fake summary", turn_count=10)
 
         expected = record["productive_turns"] / (

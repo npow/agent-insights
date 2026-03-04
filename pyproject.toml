@@ -1,22 +1,30 @@
 [project]
-name = "claude-retro"
+name = "agent-insights"
 version = "1.2.4"
-description = "Sprint retro for your Claude Code sessions"
+description = "Deep insights into every AI agent session"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.40.0",
     "flask>=2.0.0",
-    "sessionlog>=0.1.3",
+    "sessionlog",
     "claude-relay>=0.2.0",
     "sentry-sdk[flask]>=2.20.0",
 ]
 
 [project.scripts]
-claude-retro = "claude_retro.__main__:main"
+agent-insights = "agent_insights.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["claude_retro*"]
+include = ["agent_insights*"]
 
 [tool.setuptools.package-data]
-claude_retro = ["static/*"]
+agent_insights = ["static/*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.uv.sources]
+sessionlog = { path = "../sessionlog", editable = true }

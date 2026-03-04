@@ -4,16 +4,16 @@ All connection management, WAL mode, and base schema (raw_entries, sessions,
 session_features, progress_entries, etc.) live in sessionlog.db.
 
 This module re-exports those functions and applies the additional
-claude-retro-specific schema extensions (extra columns on synthesis and
+agent-insights-specific schema extensions (extra columns on synthesis and
 session_judgments) on top of the base schema.
 
-DB_PATH is determined by the CLAUDE_RETRO_DB env var (defaulted in config.py
+DB_PATH is determined by the AGENT_INSIGHTS_DB env var (defaulted in config.py
 before any sessionlog import can read it).
 """
 
 import sqlite3
 
-# config.py must be imported first — it sets CLAUDE_RETRO_DB default so that
+# config.py must be imported first — it sets AGENT_INSIGHTS_DB default so that
 # sessionlog.config reads the correct path when it first imports.
 from .config import DB_PATH  # noqa: F401 — re-exported for __main__.py reset command
 
@@ -48,8 +48,8 @@ def _migrate_add_columns(conn: sqlite3.Connection, table: str, columns: list):
 
 
 def _init_extra_schema(conn: sqlite3.Connection):
-    """Apply claude-retro-specific schema extensions on top of the sessionlog base."""
-    # synthesis has extra columns in claude-retro not present in sessionlog
+    """Apply agent-insights-specific schema extensions on top of the sessionlog base."""
+    # synthesis has extra columns in agent-insights not present in sessionlog
     _migrate_add_columns(
         conn,
         "synthesis",
@@ -81,7 +81,7 @@ def _init_extra_schema(conn: sqlite3.Connection):
             generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # session_judgments has extra columns in claude-retro
+    # session_judgments has extra columns in agent-insights
     _migrate_add_columns(
         conn,
         "session_judgments",
@@ -109,13 +109,6 @@ def _init_extra_schema(conn: sqlite3.Connection):
             ("agent_type", "TEXT DEFAULT 'unknown'"),
         ],
     )
-    _migrate_add_columns(
-        conn,
-        "progress_entries",
-        [
-            ("agent_type", "TEXT DEFAULT 'unknown'"),
-        ],
-    )
     # sessions gains canonical agent type for multi-agent installs.
     _migrate_add_columns(
         conn,
@@ -134,7 +127,7 @@ def get_writer() -> sqlite3.Connection:
     """Get the serialized writer connection with full schema.
 
     Calls sessionlog's get_writer (which creates the base schema), then
-    applies claude-retro-specific schema extensions once per process.
+    applies agent-insights-specific schema extensions once per process.
     """
     global _extra_initialized
     conn = _at_get_writer()

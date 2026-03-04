@@ -3,8 +3,10 @@
 import os
 import sys
 
+from .config import RELAY_PORT
 
-def _ensure_relay(port: int = 8082) -> bool:
+
+def _ensure_relay(port: int = RELAY_PORT) -> bool:
     """Start claude-relay if it isn't already listening on the given port.
 
     Returns True if the relay is ready (was already running or we started it),
@@ -145,7 +147,7 @@ def main():
         _existing_url = os.environ.get("ANTHROPIC_BASE_URL", "")
         _user_supplied_remote = _existing_url and "localhost" not in _existing_url and "127.0.0.1" not in _existing_url
         if not _user_supplied_remote:
-            relay_port = int(os.environ.get("CLAUDE_RETRO_RELAY_PORT", 8082))
+            relay_port = RELAY_PORT
             print("Checking LLM relay...")
             _ensure_relay(port=relay_port)
             # Always point the LLM judge at our local relay
@@ -193,7 +195,7 @@ def main():
             print("No database to reset.")
 
     else:
-        print("Usage: python -m claude_retro [ingest|serve|digest|reset]")
+        print("Usage: python -m agent_insights [ingest|serve|digest|reset]")
         sys.exit(1)
 
 

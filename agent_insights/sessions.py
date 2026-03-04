@@ -47,7 +47,13 @@ def build_sessions():
                     SUM(CASE WHEN entry_type = 'assistant' THEN 1 ELSE 0 END) as assistant_msg_count,
                     COALESCE(SUM(CASE WHEN tool_names IS NOT NULL THEN length(tool_names) - length(REPLACE(tool_names, ',', '')) + 1 ELSE 0 END), 0) as tool_use_count,
                     SUM(CASE WHEN tool_result_error = 1 THEN 1 ELSE 0 END) as tool_error_count,
-                    SUM(CASE WHEN entry_type = 'system' AND system_subtype = 'turn_duration' THEN 1 ELSE 0 END) as turn_count
+                    -- For Claude/Codex: count turn_duration system entries.
+                    -- For agents without turn_duration (e.g. Windsurf): fall back to user prompt count.
+                    CASE
+                        WHEN SUM(CASE WHEN entry_type = 'system' AND system_subtype = 'turn_duration' THEN 1 ELSE 0 END) > 0
+                        THEN SUM(CASE WHEN entry_type = 'system' AND system_subtype = 'turn_duration' THEN 1 ELSE 0 END)
+                        ELSE SUM(CASE WHEN entry_type = 'user' AND NOT is_tool_result AND user_text_length > 0 THEN 1 ELSE 0 END)
+                    END as turn_count
                 FROM raw_entries
                 WHERE session_id IS NOT NULL
                 GROUP BY session_id

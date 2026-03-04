@@ -1,4 +1,4 @@
-"""Version information for Claude Retro."""
+"""Version information for Agent Insights."""
 
 import subprocess
 from datetime import datetime

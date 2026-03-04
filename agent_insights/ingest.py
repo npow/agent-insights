@@ -6,7 +6,7 @@ sessionlog.ingest provides:
 - conn.commit() fix (writes were previously lost)
 - WAL-safe readers via autocommit connections
 
-All public functions re-exported unchanged; callers in claude-retro continue
+All public functions re-exported unchanged; callers in agent-insights continue
 to work without modification.
 """
 

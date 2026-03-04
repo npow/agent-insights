@@ -1,8 +1,8 @@
 """Tests for skill tree assessment."""
 
-from claude_retro.sessions import build_sessions, build_tool_usage
-from claude_retro.features import extract_features
-from claude_retro.skills import (
+from agent_insights.sessions import build_sessions, build_tool_usage
+from agent_insights.features import extract_features
+from agent_insights.skills import (
     assess_skills,
     _detect_context_mgmt,
     _detect_planning,

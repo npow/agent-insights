@@ -4,7 +4,6 @@ import os
 import threading
 import traceback
 
-from .config import CLAUDE_PROJECTS_DIR
 
 
 class IngestionWorker(threading.Thread):
@@ -91,25 +90,27 @@ class IngestionWorker(threading.Thread):
             self._stop_event.wait(self.interval)
 
     def _has_changes(self) -> bool:
-        """Scan JSONL files and return True if any are new or modified."""
-        if not CLAUDE_PROJECTS_DIR.exists():
-            return False
+        """Scan JSONL files across all agent sources and return True if any are new or modified."""
+        from sessionlog.config import get_source_specs
 
         changed = False
         current_files: dict[str, float] = {}
 
-        for root, _dirs, files in os.walk(CLAUDE_PROJECTS_DIR):
-            for fname in files:
-                if not fname.endswith(".jsonl"):
-                    continue
-                fpath = os.path.join(root, fname)
-                try:
-                    mtime = os.path.getmtime(fpath)
-                except OSError:
-                    continue
-                current_files[fpath] = mtime
-                if fpath not in self._known_mtimes or self._known_mtimes[fpath] < mtime:
-                    changed = True
+        for _agent, source_dir in get_source_specs():
+            if not source_dir.exists():
+                continue
+            for root, _dirs, files in os.walk(source_dir):
+                for fname in files:
+                    if not fname.endswith(".jsonl"):
+                        continue
+                    fpath = os.path.join(root, fname)
+                    try:
+                        mtime = os.path.getmtime(fpath)
+                    except OSError:
+                        continue
+                    current_files[fpath] = mtime
+                    if fpath not in self._known_mtimes or self._known_mtimes[fpath] < mtime:
+                        changed = True
 
         self._known_mtimes = current_files
         return changed

@@ -9,13 +9,14 @@ from pathlib import Path
 
 from anthropic import Anthropic
 
+from .config import RELAY_PORT
 from .db import get_conn
 
 # How many sessions to judge in parallel
 CONCURRENCY = 12
 
-# Defaults — override with ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY / CLAUDE_RETRO_MODEL
-_DEFAULT_BASE_URL = "http://localhost:8082"
+# Defaults — override with ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY / AGENT_INSIGHTS_MODEL
+_DEFAULT_BASE_URL = f"http://localhost:{RELAY_PORT}"
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
 
@@ -29,7 +30,7 @@ def _get_client() -> Anthropic:
 def call_claude(prompt: str) -> str:
     """Call the Anthropic-compatible API. Return response text."""
     client = _get_client()
-    model = os.environ.get("CLAUDE_RETRO_MODEL", _DEFAULT_MODEL)
+    model = os.environ.get("AGENT_INSIGHTS_MODEL", _DEFAULT_MODEL)
     resp = client.messages.create(
         model=model,
         max_tokens=4096,
@@ -226,7 +227,7 @@ SESSION TRANSCRIPT:
 {summary}
 
 This session has {turn_count} turns total. Each "TURN N" in the transcript is one turn — this includes
-both user prompts and assistant tool-call rounds (since Claude works autonomously between user messages).
+both user prompts and assistant tool-call rounds (since the AI works autonomously between user messages).
 
 Respond with ONLY a JSON object (no markdown, no backticks):
 {{
@@ -236,7 +237,7 @@ Respond with ONLY a JSON object (no markdown, no backticks):
   ],
   "misalignment_count": 0,
   "misalignments": [
-    {{"turn": 1, "description": "what Claude did wrong (reference the assistant turn where the mistake happened)"}}
+    {{"turn": 1, "description": "what the AI did wrong (reference the assistant turn where the mistake happened)"}}
   ],
   "correction_count": 0,
   "corrections": [
@@ -253,19 +254,19 @@ IMPORTANT rules:
 - productive_turns + waste_turns MUST equal {turn_count}.
 - A turn is "productive" if it advanced the task (useful tool call, correct edit, meaningful progress).
 - A turn is "waste" if it was wrong (wrong file, bad edit, tool error), redundant (re-doing work),
-  or caused by a misalignment (user had to correct Claude's direction).
-- If Claude made a tool call that produced an error, that turn is waste.
-- If Claude went down the wrong path for several turns before being corrected, those turns are waste.
+  or caused by a misalignment (user had to correct the AI's direction).
+- If the AI made a tool call that produced an error, that turn is waste.
+- If the AI went down the wrong path for several turns before being corrected, those turns are waste.
 - misalignment_count must equal the length of the misalignments array.
 - correction_count must equal the length of the corrections array.
-- For misalignments: "turn" is the TURN N where Claude made the mistake (always an assistant turn).
+- For misalignments: "turn" is the TURN N where the AI made the mistake (always an assistant turn).
 - For corrections: "turn" is the TURN N where the user corrected it (always a user turn, which comes AFTER the misalignment).
-- A misalignment on turn 5 and its correction on turn 6 means Claude went wrong at turn 5, user fixed it at turn 6. They must NOT have the same turn number.
+- A misalignment on turn 5 and its correction on turn 6 means the AI went wrong at turn 5, user fixed it at turn 6. They must NOT have the same turn number.
 - CRITICAL: productive_turns + waste_turns MUST equal exactly {turn_count}. Do not return fewer.
 
 Focus on:
 - Points where the human had to re-explain or clarify
-- Whether Claude got stuck in loops or went off-track
+- Whether the AI got stuck in loops or went off-track
 - Tool calls that failed or were unnecessary
 - Moments of alignment (things that worked well)"""
 
@@ -326,7 +327,7 @@ def analyze_trajectory(session_id: str, summary: str, turn_count: int = 0) -> di
 
 
 _COMBINED_PROMPT = """\
-You are analyzing a Claude Code session transcript. Evaluate the outcome, trajectory, and write a narrative.
+You are analyzing an AI coding agent session transcript. Evaluate the outcome, trajectory, and write a narrative.
 
 SESSION TRANSCRIPT:
 {summary}
@@ -348,7 +349,7 @@ Respond with ONLY a JSON object (no markdown, no backticks):
   ],
   "misalignment_count": 0,
   "misalignments": [
-    {{"turn": 1, "description": "what Claude did wrong"}}
+    {{"turn": 1, "description": "what the AI did wrong"}}
   ],
   "correction_count": 0,
   "corrections": [
@@ -367,8 +368,8 @@ Respond with ONLY a JSON object (no markdown, no backticks):
   "productivity_ratio": 0.0-1.0,
   "waste_breakdown": {{"misalignment": 0, "errors": 0, "rework": 0}},
   "narrative": "3-4 paragraph story of what happened in this session. Be specific — reference actual prompts, tool calls, errors. Write in past tense, third person. Include what went well and what went wrong.",
-  "what_worked": "1-2 sentences on what went well, with specific examples from the transcript",
-  "what_failed": "1-2 sentences on what went wrong, with specific examples from the transcript. If nothing failed, say so.",
+  "what_worked": "1-2 sentences on what went well, with specific examples from the transcript. Use 'you' for the user/developer and 'the AI' for the assistant.",
+  "what_failed": "1-2 sentences on what went wrong, with specific examples from the transcript. Use 'you' for the user/developer and 'the AI' for the assistant. If nothing failed, say so.",
   "user_quote": "the most notable thing the user said, verbatim from the transcript (copy the exact text)",
   "claude_md_suggestion": "A specific CLAUDE.md rule that would prevent this session's friction or improve future sessions. Format as a single line starting with '- '. If the session was perfect, suggest a rule that reinforces what worked.",
   "claude_md_rationale": "Why this rule matters, referencing what happened in this session"
@@ -380,8 +381,8 @@ Rules:
 - A turn is "waste" if wrong, redundant, or caused by misalignment
 - misalignment_count must equal length of misalignments array
 - correction_count must equal length of corrections array
-- friction_categories: Count misalignments by type. wrong_approach=Claude chose wrong strategy/method. buggy_code=Claude produced code with bugs/errors. tone_mismatch=Claude used wrong tone/style/framing for content. scope_creep=Claude added unrequested features/content. circular_debug=Claude kept retrying same failing approach. other=doesn't fit above.
-- narrative: Write a SPECIFIC story. Don't say "the user asked Claude to do X". Say "the user asked Claude to fix the flaky test in auth.py". Reference actual filenames, error messages, tool names.
+- friction_categories: Count misalignments by type. wrong_approach=the AI chose wrong strategy/method. buggy_code=the AI produced code with bugs/errors. tone_mismatch=the AI used wrong tone/style/framing for content. scope_creep=the AI added unrequested features/content. circular_debug=the AI kept retrying same failing approach. other=doesn't fit above.
+- narrative: Write a SPECIFIC story. Reference actual filenames, error messages, tool names. Always use 'the user' or 'you' for the developer, and 'the AI' for the assistant — never use 'you' to mean the AI.
 - user_quote: Copy the most interesting/revealing user message verbatim. Pick the one that best shows the user's intent or frustration.
 - claude_md_suggestion: Must be actionable and specific. Bad: "Be more careful". Good: "- Always run tests after editing test files before reporting success"."""
 
@@ -686,7 +687,7 @@ def judge_sessions(
                 last_exc = result_val
         msg = str(last_exc) if last_exc else "all sessions failed"
         # Provide a friendlier hint for the common "can't reach LLM" case
-        if "connection" in msg.lower() or "refused" in msg.lower() or "8082" in msg:
+        if "connection" in msg.lower() or "refused" in msg.lower() or str(RELAY_PORT) in msg:
             msg = f"Cannot reach LLM relay at {os.environ.get('ANTHROPIC_BASE_URL', _DEFAULT_BASE_URL)} — is it running? ({msg})"
         raise RuntimeError(f"LLM judging failed for all {errors} session(s): {msg}")
 
@@ -729,17 +730,17 @@ SKILL PROFILE (current level 1-5 per dimension, based on session signals):
 Respond with ONLY a JSON object (no markdown, no backticks):
 {{
   "at_a_glance": {{
-    "whats_working": "2-3 sentences on patterns that lead to successful sessions",
-    "whats_hindering": "2-3 sentences on recurring friction points",
+    "whats_working": "2-3 sentences on patterns that lead to successful sessions. PRONOUN RULE: 'you'/'your' = the developer; 'the AI' = the assistant. Example: 'When you provide explicit constraints, the AI executes precisely.' Never use 'you' to mean the AI.",
+    "whats_hindering": "2-3 sentences on recurring friction points. PRONOUN RULE: 'you'/'your' = the developer; 'the AI' = the assistant. Example: 'The AI claims success before testing; you then have to ask for verification.' Never use 'you' to describe what the AI does.",
     "quick_wins": "2-3 specific, actionable things the user could do today",
     "ambitious_workflows": "1-2 sentences on the most complex/impressive things the user has accomplished"
   }},
-  "usage_narrative": "2-3 paragraph behavioral profile of how this user works with Claude Code. Be specific — reference actual project names, common patterns, time-of-day preferences. Write in second person ('you'). Mention specific strengths and blind spots.",
+  "usage_narrative": "2-3 paragraph behavioral profile. Write in second person — 'you' always refers to the developer, never to the AI. When describing what the AI did, write 'the AI [did X]', not 'you [did X]'. Example correct: 'You tend to give the AI freedom early, then course-correct when it goes off track.' Example wrong: 'You claim everything works before testing' (this should be 'The AI claims everything works before testing').",
   "top_wins": [
     {{"title": "short title", "description": "1-2 sentences with specific examples from sessions"}}
   ],
   "top_friction": [
-    {{"title": "short title", "description": "1-2 sentences explaining the pattern", "examples": ["specific example from a session"], "user_quote": "verbatim thing the user said that captures this friction (from the session data above, if available)"}}
+    {{"title": "short title", "description": "1-2 sentences explaining the pattern. Use 'you' for the user/developer actions and 'the AI' for the assistant actions — never use 'you' to refer to both in the same sentence.", "examples": ["specific example from a session"], "user_quote": "verbatim thing the user said that captures this friction (from the session data above, if available)"}}
   ],
   "claude_md_additions": [
     {{"rule": "the CLAUDE.md rule text (start with '- ')", "rationale": "why this matters", "evidence": "specific session examples that support this"}}
@@ -775,10 +776,10 @@ Respond with ONLY a JSON object (no markdown, no backticks):
 
 Guidelines:
 - top_wins: 2-4 items. Focus on impressive accomplishments and effective patterns.
-- top_friction: 2-4 items. Focus on recurring problems, not one-off issues.
+- top_friction: 2-4 items. Focus on recurring problems, not one-off issues. Always distinguish: use 'you' for user/developer actions, 'the AI' for assistant actions. Never say 'you' when you mean the AI.
 - claude_md_additions: 3-5 rules. Each must be specific and actionable. Bad: "Write better prompts". Good: "- When debugging, always include the full error message and stack trace in your first prompt".
 - fun_headline: Be genuinely funny. Reference something specific from the sessions.
-- usage_narrative: Paint a picture of the user's working style. Are they a debugger or a builder? Do they work in bursts or steady sessions? Do they give Claude freedom or micromanage?
+- usage_narrative: Paint a picture of the user's working style. Are they a debugger or a builder? Do they work in bursts or steady sessions? Do they give the AI freedom or micromanage?
 - workflow_prompts: 3-4 items. Each paste_prompt must be IMMEDIATELY USABLE — multi-sentence, with [PLACEHOLDER] variables for user-specific parts. Model on this pattern: "Before implementing anything, let me set constraints: 1) I only own [THESE REPOS]. 2) Fix the implementation, not the tests. 3) [YOUR GOAL HERE]". Make them specific to the friction patterns you see in this user's data.
 - features_to_try: 2-3 items. setup_code must be a real, copy-pasteable command or JSON snippet (e.g., actual hooks settings.json, actual mkdir command for skills).
 - top_friction user_quote: pull verbatim text from "User said:" lines in the session data above. If multiple quotes fit, pick the most vivid one. If none available, omit the field or use empty string.
@@ -952,11 +953,16 @@ def generate_synthesis():
         "avg_per_session": round(friction_row[1] or 0, 2),
     }
 
-    # Skill levels snapshot
-    skill_rows = conn.execute("""
-        SELECT dimension_id, current_level FROM skill_profile
-    """).fetchall()
-    snap_skills = {r[0]: r[1] for r in skill_rows}
+    # Skill levels snapshot — skill_profile is a single row with d1_score..d10_score
+    snap_skills = {}
+    skill_row = conn.execute("SELECT * FROM skill_profile WHERE id = 1").fetchone()
+    if skill_row:
+        cursor = conn.execute("SELECT * FROM skill_profile WHERE id = 1")
+        cols = [d[0] for d in cursor.description]
+        p = dict(zip(cols, skill_row))
+        for i in range(1, 11):
+            score = p.get(f"d{i}_score", 0) or 0
+            snap_skills[f"D{i}"] = int(score)
 
     # Archive current synthesis to history BEFORE overwriting
     existing = wconn.execute("SELECT * FROM synthesis WHERE id = 1").fetchone()
@@ -1027,7 +1033,7 @@ def auto_apply_claude_md_suggestions() -> int:
     """Auto-append CLAUDE.md suggestions to each project's CLAUDE.md file.
 
     Collects per-session suggestions, groups by project cwd, deduplicates,
-    and appends new rules under a '## Claude Retro Suggestions' section.
+    and appends new rules under a '## Agent Insights Suggestions' section.
 
     Returns the number of projects updated.
     """
@@ -1120,8 +1126,8 @@ def _find_project_root(cwd: Path) -> Path | None:
     return None
 
 
-_RETRO_SECTION_HEADER = "## Claude Retro Suggestions"
-_RETRO_SECTION_MARKER = "<!-- claude-retro-auto -->"
+_RETRO_SECTION_HEADER = "## Agent Insights Suggestions"
+_RETRO_SECTION_MARKER = "<!-- agent-insights-auto -->"
 
 
 def _append_rules_to_claude_md(claude_md: Path, rules: list[str]) -> bool:
