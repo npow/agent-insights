@@ -1,7 +1,7 @@
 # Agent Insights
 
 [![CI](https://github.com/npow/agent-insights/actions/workflows/ci.yml/badge.svg)](https://github.com/npow/agent-insights/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A sprint retro for your AI coding sessions. Reads your local Claude Code history, scores every session, and tells you what to change.
@@ -39,11 +39,20 @@ pip install agent-insights
 agent-insights
 ```
 
+If `pip install agent-insights` returns `No matching distribution found`, install the currently published PyPI package name instead:
+
+```bash
+pip install claude-retro
+claude-retro
+```
+
 For background startup on reboot (macOS), run:
 
 ```bash
 agent-insights setup
 ```
+
+If you installed `claude-retro` from PyPI, use `claude-retro setup` instead.
 
 ## What it looks like
 
@@ -88,6 +97,13 @@ pip install agent-insights
 agent-insights
 ```
 
+PyPI fallback (current published package name):
+
+```bash
+pip install claude-retro
+claude-retro
+```
+
 Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy). Sessions auto-refresh every 30 seconds. Hit "Run LLM Judge" to get AI analysis.
 
 ## Commands
@@ -100,13 +116,15 @@ Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy
 | `agent-insights digest` | Print a weekly summary to stdout |
 | `agent-insights reset` | Delete the database and start fresh |
 
+If you installed from `pip install claude-retro`, use the same subcommands with the `claude-retro` executable.
+
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AGENT_INSIGHTS_DB` | `~/.claude/retro.sqlite` | Database path |
+| `AGENT_INSIGHTS_DB` | `~/.claude/agent-insights.sqlite` | Database path |
 | `AGENT_INSIGHTS_PORT` | `8420` | Preferred server port (falls back if busy) |
-| `AGENT_INSIGHTS_RELAY_PORT` | `8082` | Port for the auto-started `claude-relay` |
+| `AGENT_INSIGHTS_RELAY_PORT` | `18082` | Port for the auto-started `claude-relay` |
 | `ANTHROPIC_BASE_URL` | *(auto)* | Override LLM endpoint (e.g. `https://api.anthropic.com`) |
 | `ANTHROPIC_API_KEY` | `unused` | API key (only needed when using the real Anthropic API) |
 | `SENTRY_DSN` | *(unset)* | Enable Sentry error reporting when set |
@@ -117,13 +135,13 @@ Opens in your browser at `localhost:8420` (or the next free port if 8420 is busy
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - `claude` CLI on PATH (for LLM judging via the bundled `claude-relay`)
 
 ## Architecture
 
 ```
-~/.claude/projects/**/*.jsonl          ~/.claude/retro.sqlite
+~/.claude/projects/**/*.jsonl          ~/.claude/agent-insights.sqlite
          |                                      ^
          v                                      |
  +-----------------+    every 30s    +----------+----------+

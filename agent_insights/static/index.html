@@ -4333,7 +4333,11 @@ async function updateBackgroundStatus(status) {
       } else {
         const judged = status.last_judged || 0;
         stepEl.style.color = '';
-        stepEl.textContent = judged > 0 ? `Complete! Judged ${judged} session${judged !== 1 ? 's' : ''}.` : 'Complete! (all sessions already judged)';
+        if (lastSeenState === 'judging') {
+          stepEl.textContent = judged > 0 ? `Complete! Judged ${judged} session${judged !== 1 ? 's' : ''}.` : 'Complete! (no new sessions judged)';
+        } else {
+          stepEl.textContent = 'Refresh complete.';
+        }
         barEl.style.width = '100%';
         countEl.textContent = '';
 

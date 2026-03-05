@@ -3,6 +3,35 @@ revision = 3
 requires-python = ">=3.11"
 
 [[package]]
+name = "agent-insights"
+version = "1.2.4"
+source = { virtual = "." }
+dependencies = [
+    { name = "anthropic" },
+    { name = "claude-relay" },
+    { name = "flask" },
+    { name = "sentry-sdk", extra = ["flask"] },
+    { name = "sessionlog" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "anthropic", specifier = ">=0.40.0" },
+    { name = "claude-relay", specifier = ">=0.2.0" },
+    { name = "flask", specifier = ">=2.0.0" },
+    { name = "sentry-sdk", extras = ["flask"], specifier = ">=2.20.0" },
+    { name = "sessionlog", editable = "../sessionlog" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
+
+[[package]]
 name = "agentrelay-cli"
 version = "0.5.3"
 source = { registry = "https://pypi.org/simple" }
@@ -94,35 +123,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/6e/b5/0baab790b5c0f0e84
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ee/71/d00f0202be0b52b76ae8a5c13079fde8fb4b313415bab391e093c380c2cb/claude_relay-0.5.3-py3-none-any.whl", hash = "sha256:757a91354c2bc376b18aa710dc1e08ebd5efd6b23bfc30bbe4067104fdeab358", size = 1148, upload-time = "2026-03-01T03:49:39.114Z" },
 ]
-
-[[package]]
-name = "claude-retro"
-version = "1.2.4"
-source = { virtual = "." }
-dependencies = [
-    { name = "anthropic" },
-    { name = "claude-relay" },
-    { name = "flask" },
-    { name = "sentry-sdk", extra = ["flask"] },
-    { name = "sessionlog" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", specifier = ">=0.40.0" },
-    { name = "claude-relay", specifier = ">=0.2.0" },
-    { name = "flask", specifier = ">=2.0.0" },
-    { name = "sentry-sdk", extras = ["flask"], specifier = ">=2.20.0" },
-    { name = "sessionlog", editable = "../sessionlog" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "click"

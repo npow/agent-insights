@@ -1428,16 +1428,17 @@ def api_refresh():
 
     if _worker.is_busy:
         # Queue it — the worker will pick it up after the current run finishes
-        _worker.request_refresh(
-            concurrency=max(
-                1,
-                min(
-                    32,
-                    int((request.get_json(silent=True) or {}).get("concurrency", 12)),
-                ),
-            )
+        queued_concurrency = max(
+            1,
+            min(
+                32,
+                int((request.get_json(silent=True) or {}).get("concurrency", 12)),
+            ),
         )
-        return jsonify({"ok": True, "queued": True, "concurrency": 12})
+        _worker.request_refresh(
+            concurrency=queued_concurrency
+        )
+        return jsonify({"ok": True, "queued": True, "concurrency": queued_concurrency})
 
     body = request.get_json(silent=True) or {}
     concurrency = body.get("concurrency", 12)

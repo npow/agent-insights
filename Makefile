@@ -8,35 +8,35 @@ BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 ## Install from source (uses agenttrace from GitHub)
 install:
-	@echo "Installing claude-retro..."
+	@echo "Installing agent-insights..."
 	pip install -e .
-	@echo "Done! Run with: claude-retro"
+	@echo "Done! Run with: agent-insights"
 
 ## Install using a local agenttrace checkout (for development)
 install-dev:
-	@echo "Installing claude-retro with local agenttrace..."
+	@echo "Installing agent-insights with local agenttrace..."
 	pip install -e ../agenttrace/packages/agenttrace -e .
 	@echo "Done!"
 
 ## Run in development mode (browser)
 dev:
-	python -m claude_retro
+	python -m agent_insights
 
 ## Setup launchd services (macOS)
 setup:
-	python -m claude_retro setup
+	python -m agent_insights setup
 
 ## Run full pipeline (ingest + judge)
 ingest:
-	python -m claude_retro ingest
+	python -m agent_insights ingest
 
 ## Generate weekly digest
 digest:
-	python -m claude_retro digest
+	python -m agent_insights digest
 
 ## Reset database
 reset:
-	python -m claude_retro reset
+	python -m agent_insights reset
 
 ## Run tests
 test:
@@ -45,7 +45,7 @@ test:
 ## Clean build artifacts
 clean:
 	rm -rf dist/ build/
-	rm -rf claude_retro.egg-info
+	rm -rf agent_insights.egg-info claude_retro.egg-info
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 
@@ -55,7 +55,7 @@ install-watchdog:
 
 ## Show this help
 help:
-	@echo "Claude Retro - Build targets:"
+	@echo "Agent Insights - Build targets:"
 	@echo ""
 	@awk '/^##/ { \
 		desc = substr($$0, 4); \
