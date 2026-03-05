@@ -54,7 +54,11 @@ def init_sentry(
     """Initialize Sentry exactly once when SENTRY_DSN is configured."""
     global _INITIALIZED
 
-    dsn = os.environ.get("SENTRY_DSN", "").strip()
+    dsn = (
+        os.environ.get("SENTRY_DSN", "").strip()
+        or os.environ.get("AGENT_INSIGHTS_SENTRY_DSN", "").strip()
+        or os.environ.get("CLAUDE_RETRO_SENTRY_DSN", "").strip()
+    )
     if not dsn:
         return False
 

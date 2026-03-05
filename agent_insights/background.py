@@ -4,6 +4,7 @@ import os
 import threading
 import traceback
 
+import sentry_sdk
 
 
 class IngestionWorker(threading.Thread):
@@ -63,8 +64,9 @@ class IngestionWorker(threading.Thread):
         if self._run_immediately:
             try:
                 self._run_pipeline()
-            except Exception:
+            except Exception as exc:
                 traceback.print_exc()
+                sentry_sdk.capture_exception(exc)
                 self._set_error(traceback.format_exc())
 
         while not self._stop_event.is_set():
@@ -84,8 +86,9 @@ class IngestionWorker(threading.Thread):
                 elif self._has_changes():
                     # Simple mtime-based polling
                     self._run_pipeline()
-            except Exception:
+            except Exception as exc:
                 traceback.print_exc()
+                sentry_sdk.capture_exception(exc)
                 self._set_error(traceback.format_exc())
             self._stop_event.wait(self.interval)
 

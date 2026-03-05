@@ -7,7 +7,7 @@ from .config import RELAY_PORT
 
 
 def _ensure_relay(port: int = RELAY_PORT) -> bool:
-    """Start claude-relay if it isn't already listening on the given port.
+    """Start agent-relay if it isn't already listening on the given port.
 
     Returns True if the relay is ready (was already running or we started it),
     False if we couldn't start it (degrade gracefully — LLM judging just won't work).
@@ -25,22 +25,22 @@ def _ensure_relay(port: int = RELAY_PORT) -> bool:
             return False
 
     if _is_port_open(port):
-        print(f"  claude-relay already running on port {port}")
+        print(f"  agent-relay already running on port {port}")
         return True
 
     # Don't start relay inside a Claude Code session (would fail with nested session error)
     if os.environ.get("CLAUDECODE"):
-        print(f"  Skipping claude-relay auto-start (running inside Claude Code session).")
-        print(f"  To enable LLM Judge, run in a separate terminal: claude-relay serve --port {port}")
+        print(f"  Skipping agent-relay auto-start (running inside Claude Code session).")
+        print(f"  To enable LLM Judge, run in a separate terminal: agent-relay serve --port {port}")
         return False
 
-    relay_bin = shutil.which("claude-relay")
+    relay_bin = shutil.which("agent-relay") or shutil.which("claude-relay")
     if not relay_bin:
-        print("  Warning: claude-relay not found on PATH — LLM Judge will not work.")
+        print("  Warning: agent-relay not found on PATH — LLM Judge will not work.")
         return False
 
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-    print(f"  Starting claude-relay on port {port}...")
+    print(f"  Starting agent-relay on port {port}...")
     try:
         proc = subprocess.Popen(
             [relay_bin, "serve", "--port", str(port)],
@@ -50,27 +50,28 @@ def _ensure_relay(port: int = RELAY_PORT) -> bool:
             start_new_session=True,  # detach so it survives if this process dies
         )
     except Exception as e:
-        print(f"  Warning: failed to start claude-relay: {e}")
+        print(f"  Warning: failed to start agent-relay: {e}")
         return False
 
     # Wait up to 8 seconds for the relay to become ready
     deadline = time.monotonic() + 8
     while time.monotonic() < deadline:
         if _is_port_open(port):
-            print(f"  claude-relay ready (pid {proc.pid})")
+            print(f"  agent-relay ready (pid {proc.pid})")
             return True
         if proc.poll() is not None:
-            print(f"  Warning: claude-relay exited (code {proc.returncode}) — LLM Judge will not work.")
+            print(f"  Warning: agent-relay exited (code {proc.returncode}) — LLM Judge will not work.")
             return False
         time.sleep(0.25)
 
-    print(f"  Warning: claude-relay didn't become ready in time — LLM Judge may not work.")
+    print(f"  Warning: agent-relay didn't become ready in time — LLM Judge may not work.")
     return False
 
 
 def main():
     args = sys.argv[1:]
     command = args[0] if args else "serve"
+    command_args = args[1:] if args else []
     from .telemetry import init_sentry
 
     init_sentry(component="cli", command=command, enable_flask=(command == "serve"))
@@ -141,12 +142,25 @@ def main():
         from .server import app, set_worker
         from .background import IngestionWorker
 
-        # Start claude-relay for LLM judging.
-        # Skip only if the user explicitly pointed us at a non-local LLM endpoint
-        # (i.e. ANTHROPIC_BASE_URL is set AND is not localhost/127.0.0.1).
+        no_open = "--no-open" in command_args
+        explicit_port = None
+        if "--port" in command_args:
+            idx = command_args.index("--port")
+            if idx + 1 >= len(command_args):
+                print("Usage: python -m agent_insights serve [--no-open] [--port <port>]")
+                sys.exit(1)
+            try:
+                explicit_port = int(command_args[idx + 1])
+            except ValueError:
+                print("Error: --port must be an integer")
+                sys.exit(1)
+
+        # Start agent-relay for LLM judging only when the user did not provide
+        # an explicit ANTHROPIC_BASE_URL. If provided (including localhost),
+        # respect it so users can target custom local providers (e.g. Ollama).
         _existing_url = os.environ.get("ANTHROPIC_BASE_URL", "")
-        _user_supplied_remote = _existing_url and "localhost" not in _existing_url and "127.0.0.1" not in _existing_url
-        if not _user_supplied_remote:
+        _user_supplied_base = bool(_existing_url)
+        if not _user_supplied_base:
             relay_port = RELAY_PORT
             print("Checking LLM relay...")
             _ensure_relay(port=relay_port)
@@ -174,10 +188,22 @@ def main():
         set_worker(worker)
         worker.start()
 
-        SERVER_PORT, _ = choose_server_port()
+        if explicit_port is not None:
+            SERVER_PORT = explicit_port
+        else:
+            env_port = os.environ.get("AGENT_INSIGHTS_PORT", "").strip()
+            if env_port:
+                try:
+                    SERVER_PORT = int(env_port)
+                except ValueError:
+                    print("Error: AGENT_INSIGHTS_PORT must be an integer")
+                    sys.exit(1)
+            else:
+                SERVER_PORT, _ = choose_server_port()
         url = f"http://localhost:{SERVER_PORT}"
         print(f"Starting server on {url}")
-        webbrowser.open(url)
+        if not no_open:
+            webbrowser.open(url)
         app.run(host="127.0.0.1", port=SERVER_PORT, debug=False, threaded=False)
 
     elif command == "digest":

@@ -7,13 +7,17 @@ from pathlib import Path
 # Must run before any sessionlog import.
 os.environ.setdefault("AGENT_INSIGHTS_DB", str(Path.home() / ".claude" / "agent-insights.sqlite"))
 
-# LLM relay — read port from claude-relay's own default so they stay in sync
+# LLM relay — read port from relay package default so they stay in sync
 def _relay_default_port() -> int:
     try:
-        from claude_relay.__main__ import DEFAULT_PORT  # type: ignore[import]
+        from agent_relay.__main__ import DEFAULT_PORT  # type: ignore[import]
         return DEFAULT_PORT
     except Exception:
-        return 18082  # fallback if claude-relay not installed
+        try:
+            from claude_relay.__main__ import DEFAULT_PORT  # type: ignore[import]
+            return DEFAULT_PORT
+        except Exception:
+            return 18082  # fallback if relay package not installed
 
 
 RELAY_PORT = int(os.environ.get("AGENT_INSIGHTS_RELAY_PORT", _relay_default_port()))
