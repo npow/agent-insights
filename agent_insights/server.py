@@ -36,18 +36,19 @@ def set_worker(worker):
 
 # Per-agent pricing: (input $/MTok, output $/MTok)
 _AGENT_PRICING: dict[str, tuple[float, float]] = {
-    "claude":      (3.0,  15.0),   # Sonnet 3.5/3.7
-    "codex":       (1.1,   4.4),   # OpenAI o3-mini (conservative estimate)
-    "cursor":      (3.0,  15.0),   # Cursor uses Claude models
-    "windsurf":    (3.0,  15.0),   # Windsurf Cascade (Sonnet-class)
-    "antigravity": (3.0,  15.0),
+    "claude": (3.0, 15.0),  # Sonnet 3.5/3.7
+    "codex": (1.1, 4.4),  # OpenAI o3-mini (conservative estimate)
+    "cursor": (3.0, 15.0),  # Cursor uses Claude models
+    "windsurf": (3.0, 15.0),  # Windsurf Cascade (Sonnet-class)
+    "antigravity": (3.0, 15.0),
 }
 _DEFAULT_PRICING = (3.0, 15.0)
 
 
 def _estimated_cost(conn, session_filter: str, params: list) -> float:
     """Compute estimated cost using per-agent pricing."""
-    rows = conn.execute(f"""
+    rows = conn.execute(
+        f"""
         SELECT s.agent_type,
                COALESCE(SUM(f.total_input_tokens), 0),
                COALESCE(SUM(f.total_output_tokens), 0)
@@ -55,7 +56,9 @@ def _estimated_cost(conn, session_filter: str, params: list) -> float:
         LEFT JOIN session_features f ON s.session_id = f.session_id
         {session_filter}
         GROUP BY s.agent_type
-    """, params).fetchall()
+    """,
+        params,
+    ).fetchall()
     total = 0.0
     for agent_type, inp, out in rows:
         price_in, price_out = _AGENT_PRICING.get(agent_type or "", _DEFAULT_PRICING)
@@ -464,7 +467,6 @@ _FRICTION_PATTERNS = [
 def _check_llm_reachable_cached():
     """Return (reachable: bool, url: str) with a 60s cache to avoid hammering the relay."""
     import time
-    import urllib.request
 
     now = time.monotonic()
     cache = getattr(_check_llm_reachable_cached, "_cache", None)
@@ -472,6 +474,7 @@ def _check_llm_reachable_cached():
         return cache["ok"], cache["url"]
 
     from .llm_judge import _DEFAULT_BASE_URL
+
     base_url = os.environ.get("ANTHROPIC_BASE_URL", _DEFAULT_BASE_URL)
     # Don't check the real Anthropic API — it's always reachable if key is valid
     if "localhost" not in base_url and "127.0.0.1" not in base_url:
@@ -479,8 +482,10 @@ def _check_llm_reachable_cached():
     else:
         # Use TCP check — the relay returns 404 on GET / but the port being open is sufficient
         import socket
+
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(base_url)
             host = parsed.hostname or "127.0.0.1"
             port = parsed.port or 80
@@ -496,7 +501,17 @@ def _check_llm_reachable_cached():
 
 @app.route("/api/status")
 def api_status():
-    status = dict(_worker.status) if _worker is not None else {"state": "idle", "step": "", "ready": True, "last_error": None, "last_judged": 0}
+    status = (
+        dict(_worker.status)
+        if _worker is not None
+        else {
+            "state": "idle",
+            "step": "",
+            "ready": True,
+            "last_error": None,
+            "last_judged": 0,
+        }
+    )
     llm_ok, llm_url = _check_llm_reachable_cached()
     status["llm_reachable"] = llm_ok
     status["llm_url"] = llm_url
@@ -542,8 +557,11 @@ def api_diagnose():
     try:
         import socket
         from urllib.parse import urlparse as _urlparse
+
         _p = _urlparse(base_url)
-        with socket.create_connection((_p.hostname or "127.0.0.1", _p.port or 80), timeout=2):
+        with socket.create_connection(
+            (_p.hostname or "127.0.0.1", _p.port or 80), timeout=2
+        ):
             pass
         diag["llm_reachable"] = True
     except Exception as e:
@@ -552,8 +570,12 @@ def api_diagnose():
 
     # DB counts
     try:
-        diag["sessions_total"] = conn.execute("SELECT COUNT(*) FROM sessions WHERE (turn_count >= 1 OR agent_type != 'claude')").fetchone()[0]
-        diag["sessions_judged"] = conn.execute("SELECT COUNT(*) FROM session_judgments j JOIN sessions s ON j.session_id = s.session_id WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')").fetchone()[0]
+        diag["sessions_total"] = conn.execute(
+            "SELECT COUNT(*) FROM sessions WHERE (turn_count >= 1 OR agent_type != 'claude')"
+        ).fetchone()[0]
+        diag["sessions_judged"] = conn.execute(
+            "SELECT COUNT(*) FROM session_judgments j JOIN sessions s ON j.session_id = s.session_id WHERE (s.turn_count >= 1 OR s.agent_type != 'claude')"
+        ).fetchone()[0]
         diag["sessions_unjudged"] = diag["sessions_total"] - diag["sessions_judged"]
         diag["sessions_without_narrative"] = conn.execute(
             "SELECT COUNT(*) FROM session_judgments WHERE narrative IS NULL OR narrative = ''"
@@ -571,7 +593,12 @@ def api_diagnose():
 
     # JSONL file count
     try:
-        jsonl_count = sum(1 for root, _, files in os.walk(CLAUDE_PROJECTS_DIR) for f in files if f.endswith(".jsonl"))
+        jsonl_count = sum(
+            1
+            for root, _, files in os.walk(CLAUDE_PROJECTS_DIR)
+            for f in files
+            if f.endswith(".jsonl")
+        )
         diag["jsonl_files"] = jsonl_count
         diag["projects_dir"] = str(CLAUDE_PROJECTS_DIR)
     except Exception as e:
@@ -606,7 +633,8 @@ def api_overview():
           {agent_clause}
     """
 
-    stats = conn.execute(f"""
+    stats = conn.execute(
+        f"""
         SELECT
             COUNT(*) as total_sessions,
             COUNT(DISTINCT COALESCE(s.agent_type, 'unknown')) as total_agent_types,
@@ -624,15 +652,20 @@ def api_overview():
         FROM sessions s
         LEFT JOIN session_features f ON s.session_id = f.session_id
         {_filter}
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
 
     # Median and p90 of messages per session
-    msg_counts = conn.execute(f"""
+    msg_counts = conn.execute(
+        f"""
         SELECT user_prompt_count + assistant_msg_count as msgs
         FROM sessions
         {_filter}
         ORDER BY msgs
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
     msg_list = [r[0] for r in msg_counts if r[0] is not None]
     if msg_list:
         median_msgs = msg_list[len(msg_list) // 2]
@@ -642,22 +675,28 @@ def api_overview():
         median_msgs = p90_msgs = avg_msgs = 0
 
     # Top project concentration
-    top_proj = conn.execute(f"""
+    top_proj = conn.execute(
+        f"""
         SELECT project_name, COUNT(*) as cnt
         FROM sessions
         {_filter}
         GROUP BY project_name
         ORDER BY cnt DESC
         LIMIT 1
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
 
-    trajectory_dist = conn.execute(f"""
+    trajectory_dist = conn.execute(
+        f"""
         SELECT trajectory, COUNT(*) as count
         FROM sessions
         {_filter}
         GROUP BY trajectory
         ORDER BY count DESC
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
 
     cursor = conn.execute("""
         SELECT * FROM baselines ORDER BY window_size
@@ -692,7 +731,9 @@ def api_overview():
             "total_input_tokens": int(stats[11] or 0),
             "total_output_tokens": int(stats[12] or 0),
             # Estimated cost using per-agent pricing
-            "estimated_cost_usd": round(_estimated_cost(conn, _filter, agent_params), 2),
+            "estimated_cost_usd": round(
+                _estimated_cost(conn, _filter, agent_params), 2
+            ),
         }
     )
 
@@ -994,8 +1035,22 @@ def api_session_rich_timeline(session_id):
         ).fetchall()
         timeline = []
         for e in entries:
-            (eid, etype, ts, subtype, user_text, text_content, tool_names_raw,
-             tool_fps_raw, is_tr, tr_err, dur, inp_tok, out_tok, model) = e
+            (
+                eid,
+                etype,
+                ts,
+                subtype,
+                user_text,
+                text_content,
+                tool_names_raw,
+                tool_fps_raw,
+                is_tr,
+                tr_err,
+                dur,
+                inp_tok,
+                out_tok,
+                model,
+            ) = e
             try:
                 tool_names = json.loads(tool_names_raw) if tool_names_raw else []
             except (json.JSONDecodeError, TypeError):
@@ -1009,25 +1064,29 @@ def api_session_rich_timeline(session_id):
             tools = []
             for i, tname in enumerate(tool_names):
                 fp = tool_fps[i] if i < len(tool_fps) else ""
-                tools.append({
-                    "name": tname,
-                    "input_preview": fp or "",
-                    "id": f"{eid}-t{i}",
-                })
-            timeline.append({
-                "entry_id": eid,
-                "type": etype,
-                "timestamp": ts,
-                "subtype": subtype,
-                "text": text[:2000] if text else "",
-                "tools": tools,
-                "is_tool_result": bool(is_tr),
-                "tool_result_error": bool(tr_err),
-                "duration_ms": dur or 0,
-                "input_tokens": inp_tok or 0,
-                "output_tokens": out_tok or 0,
-                "model": model,
-            })
+                tools.append(
+                    {
+                        "name": tname,
+                        "input_preview": fp or "",
+                        "id": f"{eid}-t{i}",
+                    }
+                )
+            timeline.append(
+                {
+                    "entry_id": eid,
+                    "type": etype,
+                    "timestamp": ts,
+                    "subtype": subtype,
+                    "text": text[:2000] if text else "",
+                    "tools": tools,
+                    "is_tool_result": bool(is_tr),
+                    "tool_result_error": bool(tr_err),
+                    "duration_ms": dur or 0,
+                    "input_tokens": inp_tok or 0,
+                    "output_tokens": out_tok or 0,
+                    "model": model,
+                }
+            )
         return jsonify({"timeline": timeline})
     # project_name may be prefixed as "claude:<dir>" — strip prefix to get actual directory
     proj_dir = project_name.split(":", 1)[1] if ":" in project_name else project_name
@@ -1343,7 +1402,8 @@ def api_projects():
         agent_filter = "AND COALESCE(s.agent_type, 'unknown') = ?"
         params.append(agent_type)
 
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             s.project_name,
             COALESCE(s.agent_type, 'unknown') as agent_type,
@@ -1368,7 +1428,9 @@ def api_projects():
           {agent_filter}
         GROUP BY s.project_name
         ORDER BY session_count DESC
-    """.format(agent_filter=agent_filter), params).fetchall()
+    """.format(agent_filter=agent_filter),
+        params,
+    ).fetchall()
 
     cols = [
         "project_name",
@@ -1435,9 +1497,7 @@ def api_refresh():
                 int((request.get_json(silent=True) or {}).get("concurrency", 12)),
             ),
         )
-        _worker.request_refresh(
-            concurrency=queued_concurrency
-        )
+        _worker.request_refresh(concurrency=queued_concurrency)
         return jsonify({"ok": True, "queued": True, "concurrency": queued_concurrency})
 
     body = request.get_json(silent=True) or {}
@@ -1491,13 +1551,17 @@ def api_judgment_stats():
     if total == 0:
         return jsonify({"total_judged": 0})
 
-    outcome_dist = conn.execute(f"""
+    outcome_dist = conn.execute(
+        f"""
         SELECT j.outcome, COUNT(*) as count
         {_jfilter}
         GROUP BY j.outcome ORDER BY count DESC
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
 
-    avgs = conn.execute(f"""
+    avgs = conn.execute(
+        f"""
         SELECT
             AVG(j.prompt_clarity) as avg_clarity,
             AVG(j.prompt_completeness) as avg_completeness,
@@ -1506,7 +1570,9 @@ def api_judgment_stats():
             SUM(CASE WHEN j.misalignment_count > 0 THEN 1 ELSE 0 END) as sessions_with_misalignment,
             SUM(CASE WHEN j.narrative IS NOT NULL AND j.narrative != '' THEN 1 ELSE 0 END) as narrative_count
         {_jfilter}
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
 
     return jsonify(
         {
@@ -1534,11 +1600,14 @@ def api_patterns():
     """
 
     # --- Prompt gap clustering ---
-    gap_rows = conn.execute(f"""
+    gap_rows = conn.execute(
+        f"""
         SELECT j.prompt_missing FROM session_judgments j
         {_j_filter}
         AND j.prompt_missing IS NOT NULL AND j.prompt_missing != '[]'
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
 
     GAP_CATEGORIES = {
         "context": [
@@ -1633,11 +1702,14 @@ def api_patterns():
     )
 
     # --- Misalignment theme clustering ---
-    mis_rows = conn.execute(f"""
+    mis_rows = conn.execute(
+        f"""
         SELECT j.misalignments FROM session_judgments j
         {_j_filter}
         AND j.misalignments IS NOT NULL AND j.misalignments != '[]'
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
 
     THEME_KEYWORDS = {
         "tool_overuse": ["tool", "unnecessary", "redundant", "excessive", "repeated"],
@@ -1715,7 +1787,8 @@ def api_patterns():
     correlations = []
 
     # Prompt length vs productivity
-    prompt_bins = conn.execute(f"""
+    prompt_bins = conn.execute(
+        f"""
         SELECT
             CASE
                 WHEN LENGTH(s.first_prompt) < 100 THEN 'short (<100 chars)'
@@ -1730,7 +1803,9 @@ def api_patterns():
         GROUP BY bin
         HAVING n >= 3
         ORDER BY avg_prod DESC
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
     if len(prompt_bins) >= 2:
         parts = [
             f"{b[0]}: {b[1]:.0%} productivity ({b[2]} sessions)" for b in prompt_bins
@@ -1744,7 +1819,8 @@ def api_patterns():
         )
 
     # Corrections vs completion
-    corr_bins = conn.execute(f"""
+    corr_bins = conn.execute(
+        f"""
         SELECT
             CASE WHEN f.correction_count = 0 THEN 'zero corrections' ELSE 'has corrections' END as bin,
             SUM(CASE WHEN j.outcome = 'completed' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as completion_pct,
@@ -1756,7 +1832,9 @@ def api_patterns():
         WHERE 1=1 {agent_clause}
         GROUP BY bin
         HAVING n >= 3
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
     if len(corr_bins) >= 2:
         parts = [
             f"{b[0]}: {b[1]:.0f}% completion rate, {b[2]:.0%} productivity ({b[3]} sessions)"
@@ -1771,7 +1849,8 @@ def api_patterns():
         )
 
     # Unique tools vs productivity
-    tool_bins = conn.execute(f"""
+    tool_bins = conn.execute(
+        f"""
         SELECT
             CASE WHEN f.unique_tools_used < 5 THEN 'focused (<5 tools)' ELSE 'broad (5+ tools)' END as bin,
             AVG(j.productivity_ratio) as avg_prod,
@@ -1782,7 +1861,9 @@ def api_patterns():
         WHERE 1=1 {agent_clause}
         GROUP BY bin
         HAVING n >= 3
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
     if len(tool_bins) >= 2:
         parts = [
             f"{b[0]}: {b[1]:.0%} productivity ({b[2]} sessions)" for b in tool_bins
@@ -1796,7 +1877,8 @@ def api_patterns():
         )
 
     # --- Worst sessions ---
-    worst = conn.execute(f"""
+    worst = conn.execute(
+        f"""
         SELECT j.session_id, j.misalignment_count, j.outcome,
                SUBSTR(s.first_prompt, 1, 120) as prompt_preview
         FROM session_judgments j
@@ -1804,7 +1886,9 @@ def api_patterns():
         WHERE j.misalignment_count > 0 {agent_clause}
         ORDER BY j.misalignment_count DESC
         LIMIT 5
-    """, agent_params).fetchall()
+    """,
+        agent_params,
+    ).fetchall()
 
     worst_sessions = [
         {
@@ -2354,14 +2438,17 @@ def api_session_highlights():
     highlights = []
 
     # Most productive session
-    row = conn.execute(f"""
+    row = conn.execute(
+        f"""
         SELECT j.session_id, j.productivity_ratio, j.outcome, j.narrative,
                j.prompt_summary, s.project_name, s.started_at, s.duration_seconds,
                j.what_worked
         FROM session_judgments j {_filter}
           AND j.outcome = 'completed'
         ORDER BY j.productivity_ratio DESC LIMIT 1
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
     if row:
         highlights.append(
             {
@@ -2380,14 +2467,17 @@ def api_session_highlights():
         )
 
     # Most wasteful session
-    row = conn.execute(f"""
+    row = conn.execute(
+        f"""
         SELECT j.session_id, j.productivity_ratio, j.outcome, j.narrative,
                j.prompt_summary, s.project_name, s.started_at, s.duration_seconds,
                j.what_failed, j.misalignment_count
         FROM session_judgments j {_filter}
           AND j.waste_turns > 0
         ORDER BY j.waste_turns DESC LIMIT 1
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
     if row:
         highlights.append(
             {
@@ -2407,14 +2497,17 @@ def api_session_highlights():
         )
 
     # Most misaligned session
-    row = conn.execute(f"""
+    row = conn.execute(
+        f"""
         SELECT j.session_id, j.misalignment_count, j.outcome, j.narrative,
                j.prompt_summary, s.project_name, s.started_at, s.duration_seconds,
                j.what_failed
         FROM session_judgments j {_filter}
           AND j.misalignment_count > 0
         ORDER BY j.misalignment_count DESC LIMIT 1
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
     if row and (not highlights or row[0] != highlights[-1].get("session_id")):
         highlights.append(
             {
@@ -2433,7 +2526,8 @@ def api_session_highlights():
         )
 
     # Best prompt quality
-    row = conn.execute(f"""
+    row = conn.execute(
+        f"""
         SELECT j.session_id, j.prompt_clarity, j.prompt_completeness, j.outcome,
                j.narrative, j.prompt_summary, s.project_name, s.started_at,
                j.what_worked
@@ -2441,7 +2535,9 @@ def api_session_highlights():
           AND j.prompt_clarity >= 0.8 AND j.prompt_completeness >= 0.8
           AND j.outcome = 'completed'
         ORDER BY (j.prompt_clarity + j.prompt_completeness) DESC LIMIT 1
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
     if row:
         highlights.append(
             {
@@ -2460,14 +2556,17 @@ def api_session_highlights():
         )
 
     # Longest successful session
-    row = conn.execute(f"""
+    row = conn.execute(
+        f"""
         SELECT j.session_id, s.duration_seconds, j.outcome, j.narrative,
                j.prompt_summary, s.project_name, s.started_at, s.turn_count,
                j.what_worked
         FROM session_judgments j {_filter}
           AND j.outcome = 'completed'
         ORDER BY s.duration_seconds DESC LIMIT 1
-    """, agent_params).fetchone()
+    """,
+        agent_params,
+    ).fetchone()
     if row and (not highlights or row[0] != highlights[0].get("session_id")):
         highlights.append(
             {

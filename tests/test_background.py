@@ -10,7 +10,9 @@ def test_run_immediate_exception_reports_to_sentry(monkeypatch):
     def _capture(exc):
         calls.append(str(exc))
 
-    monkeypatch.setattr("agent_insights.background.sentry_sdk.capture_exception", _capture)
+    monkeypatch.setattr(
+        "agent_insights.background.sentry_sdk.capture_exception", _capture
+    )
 
     def _boom():
         raise RuntimeError("pipeline exploded")

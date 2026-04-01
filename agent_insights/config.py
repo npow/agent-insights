@@ -5,16 +5,21 @@ from pathlib import Path
 
 # Ensure sessionlog (which also reads AGENT_INSIGHTS_DB) uses our default DB path.
 # Must run before any sessionlog import.
-os.environ.setdefault("AGENT_INSIGHTS_DB", str(Path.home() / ".claude" / "agent-insights.sqlite"))
+os.environ.setdefault(
+    "AGENT_INSIGHTS_DB", str(Path.home() / ".claude" / "agent-insights.sqlite")
+)
+
 
 # LLM relay — read port from relay package default so they stay in sync
 def _relay_default_port() -> int:
     try:
         from agent_relay.__main__ import DEFAULT_PORT  # type: ignore[import]
+
         return DEFAULT_PORT
     except Exception:
         try:
             from claude_relay.__main__ import DEFAULT_PORT  # type: ignore[import]
+
             return DEFAULT_PORT
         except Exception:
             return 18082  # fallback if relay package not installed
@@ -25,7 +30,9 @@ RELAY_PORT = int(os.environ.get("AGENT_INSIGHTS_RELAY_PORT", _relay_default_port
 # Paths
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 DB_PATH = Path(
-    os.environ.get("AGENT_INSIGHTS_DB", Path.home() / ".claude" / "agent-insights.sqlite")
+    os.environ.get(
+        "AGENT_INSIGHTS_DB", Path.home() / ".claude" / "agent-insights.sqlite"
+    )
 )
 
 # Scoring weights

@@ -30,8 +30,10 @@ def _ensure_relay(port: int = RELAY_PORT) -> bool:
 
     # Don't start relay inside a Claude Code session (would fail with nested session error)
     if os.environ.get("CLAUDECODE"):
-        print(f"  Skipping agent-relay auto-start (running inside Claude Code session).")
-        print(f"  To enable LLM Judge, run in a separate terminal: agent-relay serve --port {port}")
+        print("  Skipping agent-relay auto-start (running inside Claude Code session).")
+        print(
+            f"  To enable LLM Judge, run in a separate terminal: agent-relay serve --port {port}"
+        )
         return False
 
     relay_bin = shutil.which("agent-relay") or shutil.which("claude-relay")
@@ -60,11 +62,15 @@ def _ensure_relay(port: int = RELAY_PORT) -> bool:
             print(f"  agent-relay ready (pid {proc.pid})")
             return True
         if proc.poll() is not None:
-            print(f"  Warning: agent-relay exited (code {proc.returncode}) — LLM Judge will not work.")
+            print(
+                f"  Warning: agent-relay exited (code {proc.returncode}) — LLM Judge will not work."
+            )
             return False
         time.sleep(0.25)
 
-    print(f"  Warning: agent-relay didn't become ready in time — LLM Judge may not work.")
+    print(
+        "  Warning: agent-relay didn't become ready in time — LLM Judge may not work."
+    )
     return False
 
 
@@ -147,7 +153,9 @@ def main():
         if "--port" in command_args:
             idx = command_args.index("--port")
             if idx + 1 >= len(command_args):
-                print("Usage: python -m agent_insights serve [--no-open] [--port <port>]")
+                print(
+                    "Usage: python -m agent_insights serve [--no-open] [--port <port>]"
+                )
                 sys.exit(1)
             try:
                 explicit_port = int(command_args[idx + 1])

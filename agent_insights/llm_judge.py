@@ -687,7 +687,11 @@ def judge_sessions(
                 last_exc = result_val
         msg = str(last_exc) if last_exc else "all sessions failed"
         # Provide a friendlier hint for the common "can't reach LLM" case
-        if "connection" in msg.lower() or "refused" in msg.lower() or str(RELAY_PORT) in msg:
+        if (
+            "connection" in msg.lower()
+            or "refused" in msg.lower()
+            or str(RELAY_PORT) in msg
+        ):
             msg = f"Cannot reach LLM relay at {os.environ.get('ANTHROPIC_BASE_URL', _DEFAULT_BASE_URL)} — is it running? ({msg})"
         raise RuntimeError(f"LLM judging failed for all {errors} session(s): {msg}")
 

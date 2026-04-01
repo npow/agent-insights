@@ -77,7 +77,9 @@ def init_sentry(
             "release": _release(),
         }
 
-        kwargs["environment"] = os.environ.get("SENTRY_ENVIRONMENT", "local").strip() or "local"
+        kwargs["environment"] = (
+            os.environ.get("SENTRY_ENVIRONMENT", "local").strip() or "local"
+        )
 
         traces_rate = _sample_rate("SENTRY_TRACES_SAMPLE_RATE", default=0.1)
         if traces_rate is not None:

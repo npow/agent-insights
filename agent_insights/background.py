@@ -112,7 +112,10 @@ class IngestionWorker(threading.Thread):
                     except OSError:
                         continue
                     current_files[fpath] = mtime
-                    if fpath not in self._known_mtimes or self._known_mtimes[fpath] < mtime:
+                    if (
+                        fpath not in self._known_mtimes
+                        or self._known_mtimes[fpath] < mtime
+                    ):
                         changed = True
 
         self._known_mtimes = current_files
@@ -144,7 +147,7 @@ class IngestionWorker(threading.Thread):
 
     def _set_error(self, error: str):
         # Use the last non-empty line (usually the exception message) as the short message
-        lines = [l for l in error.strip().splitlines() if l.strip()]
+        lines = [line for line in error.strip().splitlines() if line.strip()]
         msg = lines[-1].strip() if lines else error[:300]
         # Cap at 300 chars so it fits in the UI
         if len(msg) > 300:
@@ -238,7 +241,9 @@ class IngestionWorker(threading.Thread):
             )
 
         self._set_status("Starting LLM judge", 0, 0, state="judging")
-        judged = judge_sessions(concurrency=concurrency, progress_callback=on_judge_progress)
+        judged = judge_sessions(
+            concurrency=concurrency, progress_callback=on_judge_progress
+        )
 
         # Phase 3: recompute baselines/prescriptions with new judgments
         self._set_status("Recomputing baselines", 1, 2)

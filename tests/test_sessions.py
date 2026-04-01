@@ -7,8 +7,12 @@ from agent_insights.sessions import build_sessions, build_tool_usage
 class TestBuildSessions:
     def test_basic_aggregation(self, seed_entries):
         """Sessions are built from raw_entries with correct counts."""
-        seed_entries.execute("UPDATE raw_entries SET agent_type = 'claude' WHERE session_id = 'sess-a'")
-        seed_entries.execute("UPDATE raw_entries SET agent_type = 'codex' WHERE session_id = 'sess-b'")
+        seed_entries.execute(
+            "UPDATE raw_entries SET agent_type = 'claude' WHERE session_id = 'sess-a'"
+        )
+        seed_entries.execute(
+            "UPDATE raw_entries SET agent_type = 'codex' WHERE session_id = 'sess-b'"
+        )
         seed_entries.commit()
 
         n = build_sessions()

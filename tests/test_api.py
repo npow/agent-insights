@@ -28,12 +28,19 @@ class TestSessionsAPI:
         assert data["total"] == 2
         assert len(data["sessions"]) == 2
         assert all("agent_type" in s for s in data["sessions"])
-        assert all(s["agent_type"] in ("unknown", "claude", "codex", "cursor", "antigravity") for s in data["sessions"])
+        assert all(
+            s["agent_type"] in ("unknown", "claude", "codex", "cursor", "antigravity")
+            for s in data["sessions"]
+        )
 
     def test_filters_by_agent_type(self, client, seed_entries):
         conn = seed_entries
-        conn.execute("UPDATE raw_entries SET agent_type = 'codex' WHERE session_id = 'sess-b'")
-        conn.execute("UPDATE raw_entries SET agent_type = 'claude' WHERE session_id = 'sess-a'")
+        conn.execute(
+            "UPDATE raw_entries SET agent_type = 'codex' WHERE session_id = 'sess-b'"
+        )
+        conn.execute(
+            "UPDATE raw_entries SET agent_type = 'claude' WHERE session_id = 'sess-a'"
+        )
         conn.commit()
         build_sessions()
 
