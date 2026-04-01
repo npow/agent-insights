@@ -74,6 +74,85 @@ def _ensure_relay(port: int = RELAY_PORT) -> bool:
     return False
 
 
+_PLIST_LABEL = "com.agent-insights.server"
+_PLIST_DIR = os.path.expanduser("~/Library/LaunchAgents")
+
+
+def _setup_launchd():
+    """Install a macOS launchd agent so agent-insights starts on login."""
+    import shutil
+    import subprocess
+
+    if sys.platform != "darwin":
+        print("Error: setup is only supported on macOS (launchd).")
+        sys.exit(1)
+
+    agent_insights_bin = shutil.which("agent-insights")
+    if not agent_insights_bin:
+        # Fall back to running via python -m
+        agent_insights_bin = sys.executable
+        program_args = f"""    <array>
+        <string>{agent_insights_bin}</string>
+        <string>-m</string>
+        <string>agent_insights</string>
+        <string>serve</string>
+        <string>--no-open</string>
+    </array>"""
+    else:
+        program_args = f"""    <array>
+        <string>{agent_insights_bin}</string>
+        <string>serve</string>
+        <string>--no-open</string>
+    </array>"""
+
+    plist_path = os.path.join(_PLIST_DIR, f"{_PLIST_LABEL}.plist")
+    log_dir = os.path.expanduser("~/.claude/logs")
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(_PLIST_DIR, exist_ok=True)
+
+    plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{_PLIST_LABEL}</string>
+    <key>ProgramArguments</key>
+{program_args}
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{log_dir}/agent-insights.log</string>
+    <key>StandardErrorPath</key>
+    <string>{log_dir}/agent-insights.err</string>
+</dict>
+</plist>
+"""
+
+    # Unload existing service if present
+    try:
+        subprocess.run(
+            ["launchctl", "unload", plist_path],
+            capture_output=True,
+        )
+    except Exception:
+        pass
+
+    with open(plist_path, "w") as f:
+        f.write(plist_content)
+    print(f"Wrote {plist_path}")
+
+    subprocess.run(["launchctl", "load", plist_path], check=True)
+    print(f"Loaded {_PLIST_LABEL} — agent-insights will start on login.")
+    print(f"Logs: {log_dir}/agent-insights.log")
+    print()
+    print("To uninstall:")
+    print(f"  launchctl unload {plist_path}")
+    print(f"  rm {plist_path}")
+
+
 def main():
     args = sys.argv[1:]
     command = args[0] if args else "serve"
@@ -228,8 +307,22 @@ def main():
         else:
             print("No database to reset.")
 
+    elif command == "setup":
+        _setup_launchd()
+
+    elif command == "help":
+        print("Usage: agent-insights <command>")
+        print()
+        print("Commands:")
+        print("  serve    Start server + open browser (default)")
+        print("  ingest   Run full pipeline including LLM judging")
+        print("  digest   Print a weekly summary to stdout")
+        print("  reset    Delete the database and start fresh")
+        print("  setup    Install macOS launchd service for auto-start on login")
+        print("  help     Show this help message")
+
     else:
-        print("Usage: python -m agent_insights [ingest|serve|digest|reset]")
+        print("Usage: agent-insights [serve|ingest|digest|reset|setup|help]")
         sys.exit(1)
 
 

@@ -3,7 +3,7 @@
 import subprocess
 from datetime import datetime
 
-__version__ = "1.2.6"
+__version__ = "1.2.7"
 
 
 def get_version_info() -> dict:
