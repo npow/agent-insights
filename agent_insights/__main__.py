@@ -110,6 +110,21 @@ def _setup_launchd():
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(_PLIST_DIR, exist_ok=True)
 
+    # Capture current PATH so launchd can find agent-relay, claude, etc.
+    current_path = os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+    env_vars = f"""    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>{current_path}</string>"""
+    # Pass through ANTHROPIC_API_KEY if set
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if api_key:
+        env_vars += f"""
+        <key>ANTHROPIC_API_KEY</key>
+        <string>{api_key}</string>"""
+    env_vars += """
+    </dict>"""
+
     plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -119,6 +134,7 @@ def _setup_launchd():
     <string>{_PLIST_LABEL}</string>
     <key>ProgramArguments</key>
 {program_args}
+{env_vars}
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
