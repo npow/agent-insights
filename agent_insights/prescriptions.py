@@ -575,6 +575,13 @@ def _action_trend(conn):
 
 
 def _action_tool_error_hotspot(conn):
+    # Skip if a prescription already covers tool_errors (avoid duplicate cards)
+    existing = conn.execute(
+        "SELECT 1 FROM prescriptions WHERE category = 'tool_errors' AND dismissed = FALSE LIMIT 1"
+    ).fetchone()
+    if existing:
+        return []
+
     total_errors = conn.execute(
         "SELECT SUM(error_count) FROM session_tool_usage"
     ).fetchone()[0]

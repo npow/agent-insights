@@ -1,6 +1,6 @@
 [project]
 name = "agent-insights"
-version = "1.2.8"
+version = "1.2.9"
 description = "Deep insights into every AI agent session"
 license = "MIT"
 requires-python = ">=3.10"
