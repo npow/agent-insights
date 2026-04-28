@@ -1396,6 +1396,7 @@ def api_tools():
 def api_projects():
     conn = get_conn()
     agent_type = request.args.get("agent_type")
+    min_sessions = int(request.args.get("min_sessions", 2))
     params = []
     agent_filter = ""
     if agent_type:
@@ -1427,8 +1428,9 @@ def api_projects():
           AND s.first_prompt NOT LIKE 'You are analyzing a Claude Code session%%'
           {agent_filter}
         GROUP BY s.project_name
+        HAVING COUNT(*) >= {min_sessions}
         ORDER BY session_count DESC
-    """.format(agent_filter=agent_filter),
+    """.format(agent_filter=agent_filter, min_sessions=max(min_sessions, 1)),
         params,
     ).fetchall()
 
