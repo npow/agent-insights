@@ -124,15 +124,24 @@ class IngestionWorker(threading.Thread):
     def _set_status(
         self, step: str, current: int = 0, total: int = 0, state: str = "ingesting"
     ):
+        # Stay ready if DB already has data (background re-ingest shouldn't block UI)
+        already_has_data = self.status.get("ready", False) or self._db_has_data()
         self.status = {
             "state": state,
             "step": step,
-            "ready": False,
+            "ready": already_has_data,
             "current": current,
             "total": total,
             "last_error": None,
             "last_judged": self.status.get("last_judged", 0),
         }
+
+    def _db_has_data(self) -> bool:
+        try:
+            from .db import get_conn
+            return get_conn().execute("SELECT COUNT(*) FROM sessions").fetchone()[0] > 0
+        except Exception:
+            return False
 
     def _set_idle(self, judged: int = 0):
         self.status = {

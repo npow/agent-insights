@@ -2622,6 +2622,7 @@ def api_response_times():
                 LAG(entry_type) OVER (PARTITION BY session_id ORDER BY timestamp_utc) as prev_type
             FROM raw_entries
             WHERE timestamp_utc IS NOT NULL AND entry_type IN ('user', 'assistant')
+              AND timestamp_utc > datetime('now', '-30 days')
         )
         SELECT CAST((julianday(timestamp_utc) - julianday(prev_ts)) * 86400 AS INTEGER) as delta_s
         FROM ordered
@@ -3863,7 +3864,7 @@ def api_live():
             -- cutoff to handle slow Bash/Task calls.
             SELECT DISTINCT session_id
             FROM raw_entries
-            WHERE julianday(timestamp_utc) > julianday('now', '-8 hours')
+            WHERE timestamp_utc > datetime('now', '-8 hours')
               AND session_id IS NOT NULL
         ),
         session_stats AS (
@@ -3877,7 +3878,7 @@ def api_live():
                 -- peak context in last 5 min; cast guards against corrupt rows
                 MAX(CAST(input_tokens AS INTEGER)) FILTER (
                     WHERE entry_type = 'assistant'
-                      AND julianday(timestamp_utc) > julianday('now', '-300 seconds')
+                      AND timestamp_utc > datetime('now', '-300 seconds')
                       AND typeof(input_tokens) IN ('integer', 'real')
                 )                                                           AS recent_ctx
             FROM raw_entries

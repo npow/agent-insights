@@ -279,8 +279,8 @@ def main():
 
         conn = get_conn()
         try:
-            count = conn.execute("SELECT COUNT(*) FROM raw_entries").fetchone()[0]
-            needs_ingest = count == 0
+            has_data = conn.execute("SELECT 1 FROM raw_entries LIMIT 1").fetchone()
+            needs_ingest = not has_data
         except Exception:
             needs_ingest = True
         if needs_ingest:
@@ -307,7 +307,7 @@ def main():
         print(f"Starting server on {url}")
         if not no_open:
             webbrowser.open(url)
-        app.run(host="127.0.0.1", port=SERVER_PORT, debug=False, threaded=False)
+        app.run(host="127.0.0.1", port=SERVER_PORT, debug=False, threaded=True)
 
     elif command == "digest":
         from .digest import weekly_digest
