@@ -139,6 +139,7 @@ class IngestionWorker(threading.Thread):
     def _db_has_data(self) -> bool:
         try:
             from .db import get_conn
+
             return get_conn().execute("SELECT COUNT(*) FROM sessions").fetchone()[0] > 0
         except Exception:
             return False
