@@ -202,9 +202,16 @@ class IngestionWorker(threading.Thread):
         self._set_status("Generating prescriptions", 9, n)
         generate_prescriptions()
         self._set_status("Building search index", 10, n)
-        from .db import rebuild_fts_index
+        from .db import get_conn, rebuild_fts_index
 
-        rebuild_fts_index()
+        conn = get_conn()
+        try:
+            fts_count = conn.execute("SELECT COUNT(*) FROM messages_fts").fetchone()[0]
+            raw_count = conn.execute("SELECT 1 FROM raw_entries LIMIT 1").fetchone()
+            if fts_count == 0 and raw_count:
+                rebuild_fts_index()
+        except Exception:
+            pass
         self._set_idle()
 
     def _run_full_refresh(self, concurrency: int = 12):
