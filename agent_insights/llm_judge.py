@@ -704,13 +704,15 @@ def judge_sessions(
     except Exception as e:
         print(f"  Warning: synthesis generation failed: {e}", file=sys.stderr)
 
-    # Auto-apply CLAUDE.md suggestions to project files
-    try:
-        applied = auto_apply_claude_md_suggestions()
-        if applied:
-            print(f"  Auto-applied CLAUDE.md suggestions to {applied} project(s).")
-    except Exception as e:
-        print(f"  Warning: auto-apply CLAUDE.md failed: {e}", file=sys.stderr)
+    # Auto-apply CLAUDE.md suggestions to project files (gated by config)
+    from .config import AUTO_APPLY_CLAUDE_MD
+    if AUTO_APPLY_CLAUDE_MD:
+        try:
+            applied = auto_apply_claude_md_suggestions()
+            if applied:
+                print(f"  Auto-applied CLAUDE.md suggestions to {applied} project(s).")
+        except Exception as e:
+            print(f"  Warning: auto-apply CLAUDE.md failed: {e}", file=sys.stderr)
 
     return count
 
@@ -1137,14 +1139,15 @@ _RETRO_SECTION_MARKER = "<!-- agent-insights-auto -->"
 def _append_rules_to_claude_md(claude_md: Path, rules: list[str]) -> bool:
     """Append rules to a CLAUDE.md file, deduplicating against existing content.
 
+    Enforces MAX_CLAUDE_MD_RULES cap — when over limit, keeps the newest rules.
     Returns True if the file was modified.
     """
-    # Read existing content
+    from .config import MAX_CLAUDE_MD_RULES
+
     existing_content = ""
     if claude_md.exists():
         existing_content = claude_md.read_text()
 
-    # Normalize rules: ensure each starts with "- "
     normalized = []
     for rule in rules:
         rule = rule.strip()
@@ -1152,7 +1155,6 @@ def _append_rules_to_claude_md(claude_md: Path, rules: list[str]) -> bool:
             rule = "- " + rule
         normalized.append(rule)
 
-    # Extract existing rules from our managed section (if it exists)
     existing_retro_rules = []
     pattern = (
         re.escape(_RETRO_SECTION_MARKER)
@@ -1165,7 +1167,6 @@ def _append_rules_to_claude_md(claude_md: Path, rules: list[str]) -> bool:
             line.strip() for line in match.group(1).split("\n") if line.strip()
         ]
 
-    # Content outside our section (for dedup against manually-written rules)
     content_outside_section = existing_content
     if match:
         content_outside_section = (
@@ -1173,22 +1174,25 @@ def _append_rules_to_claude_md(claude_md: Path, rules: list[str]) -> bool:
         )
     outside_lower = content_outside_section.lower()
 
-    # Merge: start with existing retro rules, add new ones that aren't duplicates
     merged = list(existing_retro_rules)
     merged_lower = {r.lstrip("- ").strip().lower()[:60] for r in merged}
 
     new_count = 0
     for rule in normalized:
         core = rule.lstrip("- ").strip().lower()
-        # Skip if already in our section or elsewhere in the file
         if core[:60] in merged_lower or core[:60] in outside_lower:
             continue
+
         merged.append(rule)
         merged_lower.add(core[:60])
         new_count += 1
 
     if new_count == 0:
-        return False  # Nothing new to add
+        return False
+
+    # Enforce cap: keep the newest rules (end of list) when over limit
+    if len(merged) > MAX_CLAUDE_MD_RULES:
+        merged = merged[-MAX_CLAUDE_MD_RULES:]
 
     section_content = "\n".join(merged)
 

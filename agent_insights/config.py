@@ -278,6 +278,9 @@ SKILL_DIMENSIONS = {
 }
 
 # Detection keywords per dimension
+AUTO_APPLY_CLAUDE_MD = os.environ.get("AGENT_INSIGHTS_AUTO_APPLY_CLAUDE_MD", "0") != "0"
+MAX_CLAUDE_MD_RULES = int(os.environ.get("AGENT_INSIGHTS_MAX_CLAUDE_MD_RULES", "30"))
+
 SKILL_CONTEXT_KEYWORDS = ["/clear", "/compact", "/context"]
 SKILL_COMPACT_FOCUS = ["focus on", "only keep", "retain context"]
 SKILL_PLAN_MARKERS = [
