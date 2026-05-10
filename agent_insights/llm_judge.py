@@ -706,6 +706,7 @@ def judge_sessions(
 
     # Auto-apply CLAUDE.md suggestions to project files (gated by config)
     from .config import AUTO_APPLY_CLAUDE_MD
+
     if AUTO_APPLY_CLAUDE_MD:
         try:
             applied = auto_apply_claude_md_suggestions()
